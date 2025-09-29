@@ -1,0 +1,177 @@
+{
+    "CountLogs": [
+        {
+            "Counts": [
+                {
+                    "LogPeriodValue": 0,
+                    "Name": "Incoming",
+                    "RegisterId": 0,
+                    "RegisterType": "Line",
+                    "Tags": [
+                        "direction=IN"
+                    ],
+                    "UUID": "",
+                    "Value": 400
+                },
+                {
+                    "LogPeriodValue": 0,
+                    "Name": "Outgoing",
+                    "RegisterId": 1,
+                    "RegisterType": "Line",
+                    "Tags": [],
+                    "UUID": "",
+                    "Value": 423
+                }
+            ],
+            "LogEntryId": 1468022,
+            "StartTimestamp": "2024-02-16T11:49:00Z",
+            "StartTimestampLocaltime": "2024-02-16T11:49:00+00:00",
+            "Timestamp": "2024-02-16T11:50:00Z",
+            "TimestampLocaltime": "2024-02-16T11:50:00+00:00"
+        }
+    ],
+    "DeviceID": "D001",
+    "DeviceName": "Porto device",
+    "EnableDST": true,
+    "FriendlyDeviceSerial": "V4D-20040047",
+    "HistogramLogs": [
+        {
+            "Histograms": [
+                {
+                    "Name": "Incoming",
+                    "RegisterId": "0",
+                    "Tags": [
+                        "direction=IN"
+                    ],
+                    "UUID": "",
+                    "Values": [
+                        {
+                            "config": {
+                                "binWidth": 5,
+                                "minVal": 100,
+                                "nBins": 50,
+                                "type": "height"
+                            },
+                            "periodic_result": [
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0
+                            ],
+                            "result": [
+                                0,
+                                2,
+                                1,
+                                2,
+                                6,
+                                2,
+                                3,
+                                1,
+                                2,
+                                8,
+                                14,
+                                43,
+                                74,
+                                67,
+                                63,
+                                64,
+                                33,
+                                13,
+                                0,
+                                1,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0
+                            ]
+                        }
+                    ]
+                }
+            ],
+            "LogEntryId": 1468020,
+            "StartTimestamp": "2024-02-16T11:49:00Z",
+            "StartTimestampLocaltime": "2024-02-16T11:49:00+00:00",
+            "Timestamp": "2024-02-16T11:50:00Z",
+            "TimestampLocaltime": "2024-02-16T11:50:00+00:00"
+        }
+    ],
+    "IPv4Address": "192.168.1.xx",
+    "IPv6Address": "::",
+    "SiteID": "S001",
+    "SiteName": "Site Name",
+    "TimeZone": "Europe/London",
+    "UserString": "UserString",
+    "macAddress": "00:21:AC:04:06:8E"
+}
