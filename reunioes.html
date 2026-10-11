@@ -33,7 +33,8 @@
   .card { position: relative; }
   .card .title { padding-right: 44px; }
   .info-btn { position: absolute; top: 6px; right: 6px; width: 36px; height: 36px; padding: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
-    font: italic 700 17px/1 Georgia, 'Times New Roman', serif; color: var(--text-secondary); background: var(--surface-1); }
+    color: var(--text-secondary); background: var(--surface-1); }
+  .info-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
   .info-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
   .info-btn:disabled { opacity: .35; cursor: not-allowed; }
   .info-btn:disabled:hover { color: var(--text-secondary); border-color: var(--grid); }
@@ -152,11 +153,14 @@ function peopleBlock(s) {
   return rows ? `<dl class="people">${rows}</dl>` : '';
 }
 
+// Clipboard-with-lines icon (a report), drawn inline so it takes the text colour in light and dark.
+const REPORT_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="5.5" y="4.5" width="13" height="17" rx="2"/><rect x="9" y="2.5" width="6" height="4" rx="1.2"/><path d="M9 11h6M9 14.5h6M9 18h3.5"/></svg>';
+
 // A meeting that has not started has nothing to report yet: the button is shown but disabled (not clickable or focusable).
 function infoButton(key, disabled) {
   return disabled
-    ? `<button type="button" class="info-btn" data-report="${esc(key)}" disabled aria-label="Relatório da reunião: disponível quando a reunião começar" title="Disponível quando a reunião começar">i</button>`
-    : `<button type="button" class="info-btn" data-report="${esc(key)}" aria-label="Relatório da reunião (texto para copiar)" aria-haspopup="dialog" title="Relatório">i</button>`;
+    ? `<button type="button" class="info-btn" data-report="${esc(key)}" disabled aria-label="Relatório da reunião: disponível quando a reunião começar" title="Disponível quando a reunião começar">${REPORT_ICON}</button>`
+    : `<button type="button" class="info-btn" data-report="${esc(key)}" aria-label="Relatório da reunião (texto para copiar)" aria-haspopup="dialog" title="Relatório">${REPORT_ICON}</button>`;
 }
 
 function serviceCard(s, date) {
