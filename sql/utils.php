@@ -43,6 +43,13 @@ function ensure_schema_is_valid($con)
         AND to_regclass('pco_plans') IS NOT NULL
         AND to_regclass('pco_sync_status') IS NOT NULL
         AND to_regclass('people_overrides') IS NOT NULL
+        AND to_regclass('settings') IS NOT NULL
+        AND to_regclass('exit_stats') IS NOT NULL
+        AND to_regclass('meeting_reports') IS NOT NULL
+        AND EXISTS (SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'service_snapshots' AND column_name = 'devotional_peak')
+        AND EXISTS (SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'pco_plans' AND column_name = 'devotional_start')
         AND EXISTS (SELECT 1 FROM information_schema.columns
                     WHERE table_name = 'special_days' AND column_name = 'source')
         AND to_regclass('admin_users') IS NOT NULL

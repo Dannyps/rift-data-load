@@ -8,6 +8,7 @@
 
 require_once(__DIR__ . "/balance.php");
 require_once(__DIR__ . "/pco.php");
+require_once(__DIR__ . "/stats.php");
 
 const EVENT_THRESHOLD = 5;
 // The device reports each minute about 4 minutes late, so wait before freezing.
@@ -91,13 +92,32 @@ function services_week($con, DateTimeImmutable $now, string $sunday): array
     $nowUtc = $now->setTimezone(utc());
     $grace = new DateInterval('PT' . FREEZE_GRACE_MIN . 'M');
     $serviceDays = array_flip(array_column($services, 'day'));
+    $settings = stats_settings($con);
+    $devotionalPlans = plans_by_day($con, $sunday);
+    $savedExit = [];
+    foreach (pg_fetch_all(pg_query_params($con, "SELECT day, to_char(ref_time, 'HH24:MI') AS ref FROM exit_stats WHERE day BETWEEN $1::date AND $1::date + 6", [$sunday])) ?: [] as $r) {
+        $savedExit[$r['day'] . ' ' . $r['ref']] = true;
+    }
 
     // Which snapshots still need work: started and not frozen yet.
     $todo = [];
     foreach ($services as $s) {
         $row = $saved[$s['day'] . ' ' . $s['start_time']] ?? null;
-        if (parse_ts($s['window_start']) <= $nowUtc && (!$row || $row['frozen'] !== 't')) {
+        // also a frozen meeting that predates the statistics columns: filled once (see snapshot_service)
+        if (parse_ts($s['window_start']) <= $nowUtc && (!$row || $row['frozen'] !== 't' || $row['arrivals_total'] === null)) {
             $todo[] = $s;
+        }
+    }
+    // Exit speed after each reference hour (13:00, 19:00) of a day with meetings, once the hour has passed.
+    $exitTodo = [];
+    foreach (array_keys($serviceDays) as $day) {
+        $firstStart = min(array_map(fn($s) => substr($s['start_time'], 0, 5), array_filter($services, fn($s) => $s['day'] === $day)));
+        foreach (['exit_ref_1', 'exit_ref_2'] as $k) {
+            $ref = $settings[$k];
+            $refUtc = (new DateTimeImmutable("$day $ref", local_tz()))->setTimezone(utc());
+            if ($ref > $firstStart && $refUtc <= $nowUtc && empty($savedExit["$day $ref"]) && $refUtc > $nowUtc->modify('-9 days')) {
+                $exitTodo[] = [$day, $ref, $refUtc];
+            }
         }
     }
     $eventDays = [];
@@ -110,13 +130,23 @@ function services_week($con, DateTimeImmutable $now, string $sunday): array
         }
     }
 
-    if ($todo || $eventDays) {
+    if ($todo || $eventDays || $exitTodo) {
         $firstReading = pg_fetch_result(pg_query($con, 'SELECT min("timestamp") FROM records'), 0, 0);
         $weekStart = new DateTimeImmutable($sunday . ' 12:00', local_tz());
         $entries = $firstReading ? balance_entries($con, $weekStart) : [];
 
         foreach ($todo as $s) {
-            snapshot_service($con, $s, $entries, $firstReading, $nowUtc, $grace);
+            $devWall = null;
+            foreach ($devotionalPlans[$s['day']] ?? [] as $plan) {
+                if ($plan['devotional'] && plan_matches_meeting($plan['times'], $s['day'], substr($s['start_time'], 0, 5))) {
+                    $devWall = $plan['devotional'];
+                    break;
+                }
+            }
+            snapshot_service($con, $s, $entries, $firstReading, $nowUtc, $grace, $settings, stats_devotional_time($devWall, $s['day'], $s['start_time'], $settings));
+        }
+        foreach ($exitTodo as [$day, $ref, $refUtc]) {
+            snapshot_exit($con, $day, $ref, $refUtc, $entries, $nowUtc, (int)$settings['exit_threshold']);
         }
         foreach ($eventDays as $day => $dayStart) {
             snapshot_event($con, $day, $dayStart, $entries, $nowUtc, $grace);
@@ -126,7 +156,7 @@ function services_week($con, DateTimeImmutable $now, string $sunday): array
     return week_view($con, $now, $sunday, $services);
 }
 
-function snapshot_service($con, array $s, array $entries, ?string $firstReading, DateTimeImmutable $now, DateInterval $grace): void
+function snapshot_service($con, array $s, array $entries, ?string $firstReading, DateTimeImmutable $now, DateInterval $grace, array $settings, DateTimeImmutable $devotionalAt): void
 {
     $ws = parse_ts($s['window_start']);
     $we = parse_ts($s['window_end']);
@@ -140,20 +170,72 @@ function snapshot_service($con, array $s, array $entries, ?string $firstReading,
         }
     }
 
+    // Statistics saved with the snapshot: arrivals (late share uses the grace in force NOW; once the meeting is
+    // frozen the numbers and the grace they were computed with never change) and the devotional head-count.
+    $graceMin = (int)$settings['late_grace_min'];
+    $arrivals = stats_arrivals($entries, $ws, $we, $graceMin, $now);
+    $devotional = stats_devotional_peak($entries, $devotionalAt, $now);
+    $devotionalAt = $devotionalAt->format(DB_TS);
+
     pg_query_params($con, "
-        INSERT INTO service_snapshots (day, start_time, name, window_start, window_end, peak, peak_at, partial, frozen, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
+        INSERT INTO service_snapshots (day, start_time, name, window_start, window_end, peak, peak_at, partial, frozen, updated_at,
+                                       arrivals_total, arrivals_late, late_grace_min, devotional_at, devotional_peak)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), $10, $11, $12, $13, $14)
         ON CONFLICT (day, start_time) DO UPDATE SET
             name = EXCLUDED.name, window_start = EXCLUDED.window_start, window_end = EXCLUDED.window_end,
             peak = EXCLUDED.peak, peak_at = EXCLUDED.peak_at, partial = EXCLUDED.partial,
-            frozen = EXCLUDED.frozen, updated_at = now()
+            frozen = EXCLUDED.frozen, updated_at = now(),
+            arrivals_total = EXCLUDED.arrivals_total, arrivals_late = EXCLUDED.arrivals_late, late_grace_min = EXCLUDED.late_grace_min,
+            devotional_at = EXCLUDED.devotional_at, devotional_peak = EXCLUDED.devotional_peak
         WHERE NOT service_snapshots.frozen
     ", [
         $s['day'], $s['start_time'], $s['name'], $s['window_start'], $s['window_end'], $peak, $peakAt,
         // Data that only starts after the service began makes its count a lower bound.
         ($firstReading === null || parse_ts($firstReading) > $ws) ? 't' : 'f',
         $now > $we->add($grace) ? 't' : 'f',
+        $arrivals['total'], $arrivals['late'], $graceMin, $devotionalAt, $devotional,
     ]);
+
+    // a meeting frozen before these columns existed: fill them once, with today's settings
+    pg_query_params($con, "
+        UPDATE service_snapshots SET arrivals_total = $3, arrivals_late = $4, late_grace_min = $5, devotional_at = $6, devotional_peak = $7
+        WHERE day = $1 AND start_time = $2 AND frozen AND arrivals_total IS NULL",
+        [$s['day'], $s['start_time'], $arrivals['total'], $arrivals['late'], $graceMin, $devotionalAt, $devotional]);
+}
+
+/** Saves the exit speed after one reference hour once it is known (reached) or the 3 h window has closed. */
+function snapshot_exit($con, string $day, string $ref, DateTimeImmutable $refUtc, array $entries, DateTimeImmutable $now, int $threshold): void
+{
+    $r = stats_exit($entries, $refUtc, $threshold, $now);
+    if ($r['state'] === 'pending') {
+        return;
+    }
+    pg_query_params($con, "
+        INSERT INTO exit_stats (day, ref_time, state, minutes, threshold, frozen)
+        VALUES ($1, $2, $3, $4, $5, true) ON CONFLICT (day, ref_time) DO NOTHING",
+        [$day, $ref, $r['state'], $r['minutes'], $threshold]);
+}
+
+/** Planning Center plans of the week by day: [day => [['times' => [...], 'devotional' => wall|null], ...]] */
+function plans_by_day($con, string $sunday): array
+{
+    $out = [];
+    foreach (pg_fetch_all(pg_query_params($con, 'SELECT day, service_times, devotional_start FROM pco_plans WHERE day BETWEEN $1::date AND $1::date + 6 ORDER BY service_type_id', [$sunday])) ?: [] as $r) {
+        $out[$r['day']][] = ['times' => json_decode($r['service_times'], true), 'devotional' => $r['devotional_start']];
+    }
+    return $out;
+}
+
+/** Does a plan (its service times, wall-clock strings) cover a meeting of its day that starts at $time ('HH:MM')? 30 min early is allowed. */
+function plan_matches_meeting(array $times, string $day, string $time): bool
+{
+    $wall = strtotime("$day $time");
+    foreach ($times as $t) {
+        if ($wall >= strtotime($t['start']) - PCO_MATCH_SLACK_MIN * 60 && $wall <= strtotime($t['end'])) {
+            return true;
+        }
+    }
+    return false;
 }
 
 function snapshot_event($con, string $day, DateTimeImmutable $dayStart, array $entries, DateTimeImmutable $now, DateInterval $grace): void
@@ -215,14 +297,10 @@ function week_people($con, string $sunday, array $services, bool $withOverrides 
     foreach ($services as $s) {
         $time = substr($s['start_time'], 0, 5);
         $key = $s['day'] . ' ' . $time;
-        $wall = strtotime($s['day'] . ' ' . $time);
         $matched = [];
         foreach ($plans[$s['day']] ?? [] as $plan) {
-            foreach ($plan['times'] as $t) {
-                if ($wall >= strtotime($t['start']) - PCO_MATCH_SLACK_MIN * 60 && $wall <= strtotime($t['end'])) {
-                    $matched[] = $plan;
-                    break;
-                }
+            if (plan_matches_meeting($plan['times'], $s['day'], $time)) {
+                $matched[] = $plan;
             }
         }
         $manual = $overrides[$key] ?? [];

@@ -43,6 +43,8 @@ const PCO_ROLE_ITEMS = [
 // field). It is only used when the item has no Person note at all, and only if it reads like names:
 // the same Band field usually holds stage cues ("BANDA SOBE A PEDIDO DO PASTOR") which must not be taken.
 const PCO_BAND_CUE_WORDS = '/\b(banda|vozes?|sobe|sobem|luz|palco|m[úu]sica|instrumental|trad|c[áa]mara|playlist|v[íi]deo)\b/iu';
+// A plan time (any type) with this name is the devotional the volunteers gather for.
+const PCO_DEVOTIONAL_NAME = '/^\s*devocional/iu';
 const PCO_LEADER_POSITION = '/^\s*a\)\s*L[ií]der\s+Louvor\s*$/iu';
 
 function pco_clean_name(string $s): string
@@ -250,8 +252,12 @@ function pco_plans(string $typeId, DateTimeZone $orgTz, DateTimeImmutable $now, 
     $plans = [];
     foreach ($res['data'] as $p) {
         $svc = [];
+        $devotionals = [];
         foreach ($p['relationships']['plan_times']['data'] ?? [] as $ref) {
             $a = $times[$ref['id']] ?? null;
+            if ($a && !empty($a['starts_at']) && preg_match(PCO_DEVOTIONAL_NAME, (string)($a['name'] ?? ''))) {
+                $devotionals[] = pco_wall($a['starts_at'], $orgTz);
+            }
             if ($a && $a['time_type'] === 'service' && !empty($a['starts_at'])) {
                 $start = pco_wall($a['starts_at'], $orgTz);
                 $end = !empty($a['ends_at']) ? pco_wall($a['ends_at'], $orgTz) : $start;
@@ -268,7 +274,11 @@ function pco_plans(string $typeId, DateTimeZone $orgTz, DateTimeImmutable $now, 
             continue;
         }
         $title = trim((string)($p['attributes']['title'] ?? ''));
-        $plans[] = ['id' => (string)$p['id'], 'day' => $day, 'title' => $title !== '' ? $title : null, 'times' => $svc];
+        // the devotional of this day (a plan can list old ones from copied plans): earliest on the plan's day
+        $devotionals = array_filter($devotionals, fn($d) => substr($d, 0, 10) === $day);
+        sort($devotionals);
+        $plans[] = ['id' => (string)$p['id'], 'day' => $day, 'title' => $title !== '' ? $title : null, 'times' => $svc,
+                    'devotional' => $devotionals[0] ?? null];
     }
     return $plans;
 }
@@ -399,15 +409,16 @@ function pco_sync_run($con, DateTimeImmutable $now, array $opts): array
             continue;
         }
         pg_query_params($con, "
-            INSERT INTO pco_plans (plan_id, service_type_id, service_type_name, folder_path, day, title, service_times, people_raw, people_fetched_at, fetched_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
+            INSERT INTO pco_plans (plan_id, service_type_id, service_type_name, folder_path, day, title, service_times, people_raw, people_fetched_at, devotional_start, fetched_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
             ON CONFLICT (plan_id) DO UPDATE SET
                 service_type_id = EXCLUDED.service_type_id, service_type_name = EXCLUDED.service_type_name, folder_path = EXCLUDED.folder_path,
                 day = EXCLUDED.day, title = EXCLUDED.title, service_times = EXCLUDED.service_times,
                 people_raw = COALESCE(EXCLUDED.people_raw, pco_plans.people_raw),
-                people_fetched_at = COALESCE(EXCLUDED.people_fetched_at, pco_plans.people_fetched_at), fetched_at = now()",
+                people_fetched_at = COALESCE(EXCLUDED.people_fetched_at, pco_plans.people_fetched_at),
+                devotional_start = EXCLUDED.devotional_start, fetched_at = now()",
             [$planId, $typeId, $typeName, $folder, $plan['day'], $plan['title'], json_encode($plan['times']),
-             $people === null ? null : json_encode($people, JSON_UNESCAPED_UNICODE), $fetchedAt]);
+             $people === null ? null : json_encode($people, JSON_UNESCAPED_UNICODE), $fetchedAt, $plan['devotional']]);
     }
     if (!$dry) {
         // plans that are in the window but no longer in Planning Center (deleted/moved)

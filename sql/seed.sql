@@ -211,3 +211,66 @@ CREATE TABLE IF NOT EXISTS people_overrides (
     set_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (day, start_time, role)
 );
+
+-- ---------------------------------------------------------------- statistics
+
+-- Tunable numbers. Values already stored in the snapshots are never recomputed when one changes.
+CREATE TABLE IF NOT EXISTS settings (
+    key text PRIMARY KEY,
+    value text NOT NULL,
+    set_by text,
+    set_at timestamptz NOT NULL DEFAULT now()
+);
+INSERT INTO settings (key, value) VALUES
+    ('late_grace_min', '10'),            -- minutes after the start before an arrival counts as late
+    ('devotional_morning', '08:43'),     -- used when the Planning Center plan has no "Devocional" time
+    ('devotional_afternoon', '16:58'),
+    ('exit_ref_1', '13:00'),             -- exit speed: time from these hours until the balance is <= threshold
+    ('exit_ref_2', '19:00'),
+    ('exit_threshold', '5')
+ON CONFLICT (key) DO NOTHING;
+
+-- Metrics saved with a meeting's snapshot (frozen with it): arrivals from one hour before the start to the end,
+-- how many came after start + the grace in force when it was computed, and the head-count at the devotional.
+ALTER TABLE service_snapshots
+    ADD COLUMN IF NOT EXISTS arrivals_total int,
+    ADD COLUMN IF NOT EXISTS arrivals_late int,
+    ADD COLUMN IF NOT EXISTS late_grace_min int,
+    ADD COLUMN IF NOT EXISTS devotional_at timestamp,
+    ADD COLUMN IF NOT EXISTS devotional_peak int;
+
+-- How long the building took to empty after a reference hour: minutes from the reference time until the balance
+-- was <= threshold. state: reached | not_reached (not within the window) | no_data (no readings around it).
+CREATE TABLE IF NOT EXISTS exit_stats (
+    day date NOT NULL,
+    ref_time time NOT NULL,
+    state text NOT NULL CHECK (state IN ('reached', 'not_reached', 'no_data')),
+    minutes int,
+    threshold int NOT NULL,
+    frozen boolean NOT NULL DEFAULT true,
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (day, ref_time)
+);
+
+-- The report typed in the meeting dialog by a logged-in user (what the yearly statistics use).
+CREATE TABLE IF NOT EXISTS meeting_reports (
+    day date NOT NULL,
+    start_time time NOT NULL,
+    assistencia int NOT NULL,
+    voluntarios int NOT NULL,
+    visitantes int NOT NULL,
+    adultos_fora int NOT NULL,
+    kids int NOT NULL,
+    auditorio int NOT NULL,
+    decisoes int NOT NULL,
+    mc text NOT NULL DEFAULT '',
+    oferta text NOT NULL DEFAULT '',
+    lider text NOT NULL DEFAULT '',
+    pregacao text NOT NULL DEFAULT '',
+    saved_by text NOT NULL,
+    saved_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (day, start_time)
+);
+
+-- the "Devocional" time written in the plan (local wall-clock 'YYYY-MM-DD HH:MM')
+ALTER TABLE pco_plans ADD COLUMN IF NOT EXISTS devotional_start text;

@@ -62,6 +62,12 @@ foreach (['Lucas Orgarato' => true, 'Pra. Deise' => true, 'Pr. Isaque' => true, 
 }
 check('band note with per-meeting tags', pco_parse_person("Pra. Deise (9:30)\nPr. Isaque (11:30)", $AM), [['09:30' => 'Pra. Deise', '11:30' => 'Pr. Isaque'], []]);
 
+// the devotional plan time
+foreach (['Devocional' => true, 'Devocional ' => true, 'DEVOCIONAL' => true, 'Devocional - (portão da entrada abre)' => true, '  devocional' => true,
+          'Briefing' => false, 'Pré-devocional' => false, '' => false] as $name => $yes) {
+    check("plan time name '$name' devotional=" . json_encode($yes), (bool)preg_match(PCO_DEVOTIONAL_NAME, $name), $yes);
+}
+
 // leader position
 check('leader position', (bool)preg_match(PCO_LEADER_POSITION, 'a) Líder Louvor'), true);
 check('co-leader is not the leader', (bool)preg_match(PCO_LEADER_POSITION, 'b)Co-Líder Louvor'), false);
