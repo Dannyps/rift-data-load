@@ -1,0 +1,77 @@
+  :root {
+    color-scheme: light dark;
+    --surface-1: #fcfcfb;
+    --surface-2: #f2f1ee;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #7d7c77;
+    --grid: #e4e3df;
+    --series-in: #2a78d6;
+    --series-out: #eb6834;
+    --series-bal: #1baf7a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface-1: #1a1a19;
+      --surface-2: #252524;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted: #8f8e86;
+      --grid: #333331;
+      --series-in: #3987e5;
+      --series-out: #d95926;
+      --series-bal: #199e70;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 16px 48px;
+    background: var(--surface-1); color: var(--text-primary);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 980px; margin: 0 auto; }
+  .nav { display: flex; gap: 16px; margin: 4px 0 0; font-size: 14px; }
+  .nav a { color: var(--text-secondary); text-decoration: none; padding-bottom: 2px; border-bottom: 2px solid transparent; }
+  .nav a[aria-current="page"] { color: var(--text-primary); border-bottom-color: var(--series-bal); }
+  .nav a:hover { color: var(--text-primary); }
+  .nav a:focus-visible { outline: 2px solid var(--series-in); outline-offset: 2px; }
+  header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; }
+  h1 { font-size: 20px; margin: 0; font-weight: 600; }
+  .sub { color: var(--text-secondary); font-size: 13px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 20px 0; }
+  .tile { background: var(--surface-2); border-radius: 8px; padding: 12px 16px; }
+  .tile .label { color: var(--text-secondary); font-size: 13px; display: flex; align-items: center; gap: 6px; }
+  .tile .value { font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .tile .note { color: var(--text-muted); font-size: 12px; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .ranges { display: flex; gap: 4px; }
+  button {
+    font: inherit; font-size: 13px; color: var(--text-secondary); background: transparent;
+    border: 1px solid var(--grid); border-radius: 6px; padding: 4px 12px; cursor: pointer;
+  }
+  button[aria-pressed="true"] { background: var(--surface-2); color: var(--text-primary); border-color: var(--text-muted); }
+  button:focus-visible { outline: 2px solid var(--series-in); outline-offset: 2px; }
+  .legend { display: flex; gap: 16px; font-size: 13px; color: var(--text-secondary); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  #chart { position: relative; }
+  svg { width: 100%; height: auto; display: block; overflow: visible; }
+  svg text { fill: var(--text-muted); font-size: 11px; font-family: inherit; }
+  .grid line { stroke: var(--grid); stroke-width: 1; }
+  .tip {
+    position: absolute; pointer-events: none; display: none; min-width: 140px;
+    background: var(--surface-1); border: 1px solid var(--grid); border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.15); padding: 8px 10px; font-size: 13px;
+  }
+  .tip b { display: block; margin-bottom: 4px; font-weight: 600; }
+  .tip div { display: flex; justify-content: space-between; gap: 16px; font-variant-numeric: tabular-nums; }
+  .tip .k { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); }
+  .empty { padding: 48px 0; text-align: center; color: var(--text-muted); }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; margin-top: 8px; }
+  th, td { text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--grid); }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--text-secondary); font-weight: 500; }
+  .tablewrap { max-height: 320px; overflow: auto; }
+  footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--grid); color: var(--text-secondary); font-size: 13px; }
+  footer p { margin: 0 0 8px; max-width: 70ch; }
+  [hidden] { display: none !important; }

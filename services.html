@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Serviços · Contador de pessoas RIFT</title>
+<link rel="stylesheet" href="assets/common.css">
+<style>
+  .weekbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin: 20px 0 4px; }
+  .weekbar .label { font-weight: 600; }
+  .weekbar .buttons { display: flex; gap: 4px; }
+  .day { margin-top: 24px; }
+  .day h2 { font-size: 15px; font-weight: 600; margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+  .dayname { display: inline-block; }
+  .dayname::first-letter { text-transform: uppercase; }
+  .badge { font-size: 11px; font-weight: 500; text-transform: none; color: var(--text-secondary); background: var(--surface-2); border-radius: 10px; padding: 1px 8px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .card { background: var(--surface-2); border-radius: 8px; padding: 12px 16px; display: flex; flex-direction: column; gap: 2px; }
+  .card .title { font-size: 13px; color: var(--text-secondary); display: flex; justify-content: space-between; gap: 8px; }
+  .card .time { font-variant-numeric: tabular-nums; }
+  .card .count { font-size: 40px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .card .count.unknown { font-size: 22px; font-weight: 500; color: var(--text-muted); line-height: 2; }
+  .card .state { font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+  .card .note { font-size: 12px; color: var(--text-muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--series-bal); display: inline-block; animation: pulse 2s ease-in-out infinite; }
+  .card.event { border-left: 3px solid var(--series-out); }
+  @keyframes pulse { 50% { opacity: .35; } }
+  @media (prefers-reduced-motion: reduce) { .dot { animation: none; } }
+  .empty { padding: 48px 0; text-align: center; color: var(--text-muted); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Serviços</h1>
+    <div class="sub" id="status">A carregar…</div>
+  </header>
+  <nav class="nav" aria-label="Páginas"><a href="services.html" aria-current="page">Serviços</a><a href="./">Gráficos</a></nav>
+
+  <div class="weekbar">
+    <div class="label" id="weeklabel"></div>
+    <div class="buttons">
+      <button id="prev" aria-label="Semana anterior">◀ Anterior</button>
+      <button id="current">Esta semana</button>
+      <button id="next" aria-label="Semana seguinte">Seguinte ▶</button>
+    </div>
+  </div>
+
+  <div id="days"></div>
+
+  <footer>
+    <p><b>O que significam os valores.</b> Cada cartão de serviço mostra o número máximo de pessoas dentro do edifício
+      durante o serviço, desde a hora de início até ao fim da sua duração (normalmente duas horas). Antes de o serviço
+      começar o valor é <i>desconhecido</i>; durante o serviço vai subindo até ao máximo, e no fim fica guardado.</p>
+    <p>Em dias sem serviço, quando há mais de 5 pessoas dentro aparece um cartão de <i>evento</i>, com a hora a que
+      passou das 5 pessoas, a hora a que deixou de haver e o máximo atingido. Os dias especiais substituem os serviços
+      habituais da sua data.</p>
+    <p>O número de pessoas dentro é uma estimativa a partir das entradas e saídas (ver a página de gráficos) e é reposto
+      a zero às 04:00. Quando o contador só começou a registar depois do início do serviço, o valor indica
+      <i>dados parciais</i> e pode ficar abaixo do real. O contador envia os dados com cerca de 4 minutos de atraso.
+      As semanas vão de domingo a sábado e as horas são as de Portugal continental.</p>
+  </footer>
+</main>
+
+<script>
+const LOCALE = 'pt-PT';
+const TZ = 'Europe/Lisbon';
+const $ = id => document.getElementById(id);
+
+let week = new URLSearchParams(location.search).get('week');
+let data = null;
+
+const dayFmt = new Intl.DateTimeFormat(LOCALE, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+const shortFmt = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short', timeZone: 'UTC' });
+const hhmm = iso => new Date(iso).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit', timeZone: TZ });
+const dateOf = ymd => new Date(ymd + 'T12:00:00Z');
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function serviceCard(s) {
+  let count, state;
+  if (s.status === 'unknown') {
+    count = '<div class="count unknown">Desconhecido</div>';
+    state = '<div class="state">Ainda não começou</div>';
+  } else {
+    count = s.count === null ? '<div class="count unknown">Sem dados</div>' : `<div class="count">${s.count.toLocaleString(LOCALE)}</div>`;
+    state = s.status === 'running'
+      ? '<div class="state"><span class="dot"></span>A decorrer · o valor ainda pode subir</div>'
+      : `<div class="state">Terminou às ${hhmm(s.end)}</div>`;
+  }
+  const partial = s.partial && s.status !== 'unknown' ? '<div class="note">Dados parciais: o contador começou depois do início do serviço.</div>' : '';
+  return `<div class="card"><div class="title"><span>${esc(s.name)}${s.special ? ' <span class="badge">dia especial</span>' : ''}</span><span class="time">${s.time}</span></div>${count}${state}${partial}</div>`;
+}
+
+function eventCard(e) {
+  return `<div class="card event"><div class="title"><span>Evento</span><span class="time">${hhmm(e.start)}–${hhmm(e.end)}</span></div>` +
+    `<div class="count">${e.count.toLocaleString(LOCALE)}</div><div class="state">pico de pessoas dentro</div>` +
+    `<div class="note">máximo às ${hhmm(e.peakAt)}</div></div>`;
+}
+
+function render() {
+  const a = dateOf(data.weekStart), b = dateOf(data.weekEnd);
+  $('weeklabel').textContent = `${shortFmt.format(a)} – ${shortFmt.format(b)}${data.isCurrent ? ' · esta semana' : ''}`;
+  $('current').disabled = data.isCurrent;
+  $('status').textContent = `Atualizado às ${new Date().toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' })} · ${data.timezone}`;
+
+  $('days').innerHTML = data.days.length ? data.days.map(d => `<section class="day">` +
+    `<h2><span class="dayname">${dayFmt.format(dateOf(d.date))}</span>${d.date === data.today ? ' <span class="badge">hoje</span>' : ''}</h2>` +
+    `<div class="cards">${d.services.map(serviceCard).join('')}${d.event ? eventCard(d.event) : ''}</div></section>`).join('')
+    : '<div class="empty">Sem serviços nem eventos nesta semana.</div>';
+}
+
+async function load() {
+  try {
+    const r = await fetch('services.php' + (week ? `?week=${week}` : ''), { cache: 'no-store' });
+    if (!r.ok) throw new Error(r.status);
+    data = await r.json();
+    render();
+  } catch (e) {
+    $('status').textContent = 'Não foi possível carregar os dados';
+  }
+}
+
+function go(w) {
+  week = w;
+  history.replaceState(null, '', w ? `?week=${w}` : location.pathname);
+  load();
+}
+$('prev').addEventListener('click', () => data && go(data.prev));
+$('next').addEventListener('click', () => data && go(data.next));
+$('current').addEventListener('click', () => go(null));
+load(); setInterval(load, 60000);
+</script>
+</body>
+</html>
