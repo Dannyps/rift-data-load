@@ -1,0 +1,9 @@
+[Unit]
+Description=Refresh the rift-data-load service/event snapshots
+After=docker.service
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+ExecStart=/usr/bin/php /media/ssd/www/rift-data-load/snapshot.php

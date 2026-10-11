@@ -1,0 +1,9 @@
+/var/lib/rift-data-load/records /var/lib/rift-data-load/ingest.log {
+    weekly
+    rotate 52
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 640 www-data www-data
+}

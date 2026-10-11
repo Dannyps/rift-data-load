@@ -1,0 +1,31 @@
+# Dedicated Postgres for rift-data-load (people-counter records). Published on loopback only:
+# Apache/mod_php runs on the host and connects to 127.0.0.1:5433.
+name: rift-postgres
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rift
+      POSTGRES_DB: rift
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      # create_host_path: false makes `up` fail when /media/ssd is not mounted instead of
+      # silently initialising a fresh cluster on the root disk.
+      - type: bind
+        source: ./pgdata
+        target: /var/lib/postgresql/data
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rift -d rift"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -1,0 +1,8 @@
+[Unit]
+Description=Nightly backup of the rift Postgres database
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/media/ssd/www/rift-postgres/backup/pg-backup.sh

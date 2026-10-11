@@ -1,0 +1,10 @@
+[Unit]
+Description=RIFT counter monitor: email alert when no data arrives
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/rift-monitor.py
+Nice=10
+NoNewPrivileges=true
+ProtectHome=true
