@@ -55,6 +55,7 @@
   .field input { font: inherit; width: 100%; color: var(--text-primary); background: var(--surface-2); border: 1px solid var(--grid); border-radius: 6px; padding: 8px 10px; }
   .field input[aria-invalid="true"] { border-color: var(--series-out); }
   .field input:focus-visible, #reportText:focus-visible { outline: 2px solid var(--series-in); outline-offset: 1px; }
+  .field .hint { font-size: 12px; color: var(--text-muted); margin: -1px 0 4px; }
   .field .err { color: var(--series-out); font-size: 12px; margin-top: 2px; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
   @media (max-width: 520px) { .grid2 { grid-template-columns: 1fr; } }
@@ -194,7 +195,9 @@ function render() {
 
 // ---------------------------------------------------------------- meeting report (text to copy)
 
+// [field id, label (dialog and text), hint shown in the dialog only]
 const REPORT_NUMBERS = [
+  ['assistencia', 'Assistência', 'Pré-preenchido com a contagem do contador; corrija se for preciso.'],
   ['voluntarios', 'Voluntários'],
   ['visitantes', 'Visitantes'],
   ['adultos', 'Adultos fora das portas (incluir voluntários kids, safety venue e pais lá em cima)'],
@@ -218,7 +221,7 @@ function buildReport(card, values) {
     return [`*Evento · ${date} · ${card.start}–${card.end}*`, `*Pessoas (pico):* ${card.count}`].join('\n');
   }
   const title = `${card.name}${card.name.includes(card.time) ? '' : ' · ' + card.time} · ${date}`;
-  const lines = [`*${title}*`, '*Assistência*'];
+  const lines = [`*${title}*`];
   for (const [id, label] of REPORT_NUMBERS) lines.push(`*${label}:* ${parseInt(values[id], 10)}`);
   for (const [id, label] of REPORT_NAMES) lines.push(`*${label}:* ${values[id].replace(/\s+/g, ' ').trim()}`);
   return lines.join('\n');
@@ -236,12 +239,12 @@ function cardFor(key) {
     return e && { kind: 'e', date, name: 'Evento', time: '', start: hhmm(e.start), end: hhmm(e.end), count: e.count, people: null };
   }
   const s = day.services.find(x => x.time === time);
-  return s && { kind: 's', date, name: s.name, time: s.time, people: s.people };
+  return s && { kind: 's', date, name: s.name, time: s.time, people: s.people, count: s.count };
 }
 
-function fieldHtml(id, label, value, extra) {
-  return `<div class="field"><label for="f_${id}">${esc(label)}</label>` +
-    `<input id="f_${id}" name="${id}" type="text" ${extra} value="${esc(value)}" aria-describedby="e_${id}" autocomplete="off"><div class="err" id="e_${id}" hidden></div></div>`;
+function fieldHtml(id, label, value, extra, hint) {
+  return `<div class="field"><label for="f_${id}">${esc(label)}</label>` + (hint ? `<div class="hint" id="h_${id}">${esc(hint)}</div>` : '') +
+    `<input id="f_${id}" name="${id}" type="text" ${extra} value="${esc(value)}" aria-describedby="${hint ? 'h_' + id + ' ' : ''}e_${id}" autocomplete="off"><div class="err" id="e_${id}" hidden></div></div>`;
 }
 
 function openReport(key) {
@@ -263,7 +266,8 @@ function openReport(key) {
     $('reportOut').hidden = false;
   } else {
     $('reportForm').hidden = false;
-    $('numFields').innerHTML = REPORT_NUMBERS.map(([id, label]) => fieldHtml(id, label, '', 'inputmode="numeric" pattern="[0-9]*"')).join('');
+    $('numFields').innerHTML = REPORT_NUMBERS.map(([id, label, hint]) =>
+      fieldHtml(id, label, id === 'assistencia' && card.count !== null && card.count !== undefined ? card.count : '', 'inputmode="numeric" pattern="[0-9]*"', hint)).join('');
     $('nameFields').innerHTML = REPORT_NAMES.map(([id, label, role]) =>
       fieldHtml(id, label, (card.people && card.people[role] && card.people[role].value) || '', 'maxlength="100"')).join('');
   }
