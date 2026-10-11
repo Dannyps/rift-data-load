@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RIFT people counter</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --surface-1: #fcfcfb;
+    --surface-2: #f2f1ee;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #7d7c77;
+    --grid: #e4e3df;
+    --series-in: #2a78d6;
+    --series-out: #eb6834;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface-1: #1a1a19;
+      --surface-2: #252524;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted: #8f8e86;
+      --grid: #333331;
+      --series-in: #3987e5;
+      --series-out: #d95926;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 16px 48px;
+    background: var(--surface-1); color: var(--text-primary);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 980px; margin: 0 auto; }
+  header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; }
+  h1 { font-size: 20px; margin: 0; font-weight: 600; }
+  .sub { color: var(--text-secondary); font-size: 13px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 20px 0; }
+  .tile { background: var(--surface-2); border-radius: 8px; padding: 12px 16px; }
+  .tile .label { color: var(--text-secondary); font-size: 13px; display: flex; align-items: center; gap: 6px; }
+  .tile .value { font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .tile .note { color: var(--text-muted); font-size: 12px; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .ranges { display: flex; gap: 4px; }
+  button {
+    font: inherit; font-size: 13px; color: var(--text-secondary); background: transparent;
+    border: 1px solid var(--grid); border-radius: 6px; padding: 4px 12px; cursor: pointer;
+  }
+  button[aria-pressed="true"] { background: var(--surface-2); color: var(--text-primary); border-color: var(--text-muted); }
+  button:focus-visible { outline: 2px solid var(--series-in); outline-offset: 2px; }
+  .legend { display: flex; gap: 16px; font-size: 13px; color: var(--text-secondary); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  #chart { position: relative; }
+  svg { width: 100%; height: auto; display: block; overflow: visible; }
+  svg text { fill: var(--text-muted); font-size: 11px; font-family: inherit; }
+  .grid line { stroke: var(--grid); stroke-width: 1; }
+  .tip {
+    position: absolute; pointer-events: none; display: none; min-width: 140px;
+    background: var(--surface-1); border: 1px solid var(--grid); border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.15); padding: 8px 10px; font-size: 13px;
+  }
+  .tip b { display: block; margin-bottom: 4px; font-weight: 600; }
+  .tip div { display: flex; justify-content: space-between; gap: 16px; font-variant-numeric: tabular-nums; }
+  .tip .k { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); }
+  .empty { padding: 48px 0; text-align: center; color: var(--text-muted); }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; margin-top: 8px; }
+  th, td { text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--grid); }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--text-secondary); font-weight: 500; }
+  .tablewrap { max-height: 320px; overflow: auto; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>RIFT people counter</h1>
+    <div class="sub" id="status">Loading…</div>
+  </header>
+
+  <section class="tiles" aria-label="Totals for the selected range">
+    <div class="tile"><div class="label"><span class="swatch" style="background:var(--series-in)"></span>Incoming</div><div class="value" id="tin">–</div><div class="note" id="rangeNote1"></div></div>
+    <div class="tile"><div class="label"><span class="swatch" style="background:var(--series-out)"></span>Outgoing</div><div class="value" id="tout">–</div><div class="note" id="rangeNote2"></div></div>
+    <div class="tile"><div class="label">Last reading</div><div class="value" id="tlast">–</div><div class="note" id="tlastnote"></div></div>
+  </section>
+
+  <div class="controls">
+    <div class="ranges" role="group" aria-label="Time range" id="ranges"></div>
+    <div class="legend"><span><i class="swatch" style="background:var(--series-in)"></i>Incoming</span><span><i class="swatch" style="background:var(--series-out)"></i>Outgoing</span></div>
+    <button id="toggle" aria-pressed="false">Table</button>
+  </div>
+
+  <div id="chart"><div class="tip" id="tip"></div></div>
+  <div id="tablewrap" class="tablewrap" hidden></div>
+</main>
+
+<script>
+const RANGES = { '1h': 'Last hour', '6h': '6 hours', '24h': '24 hours', '7d': '7 days', '30d': '30 days' };
+const SERIES = [ { key: 'in', name: 'Incoming', css: '--series-in' }, { key: 'out', name: 'Outgoing', css: '--series-out' } ];
+const W = 960, H = 340, M = { l: 44, r: 16, t: 12, b: 28 };
+
+let range = new URLSearchParams(location.search).get('range');
+if (!RANGES[range]) range = '24h';
+let data = null;
+
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+function fmtTime(iso, bucket) {
+  const d = new Date(iso);
+  if (bucket >= 86400) return d.toLocaleDateString([], { day: 'numeric', month: 'short' });
+  if (bucket >= 3600) return d.toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function niceMax(v) {
+  // a multiple of 4 so the four gridline steps are whole numbers
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  for (const m of [1, 2, 4, 8, 10, 20, 40, 80, 100]) if (m * p / 10 >= v && (m * p / 10) % 4 === 0) return m * p / 10;
+  return Math.ceil(v / 4) * 4;
+}
+
+function render() {
+  if (!data) return;
+  const pts = data.points, b = data.bucketSeconds;
+  const sum = k => pts.reduce((s, p) => s + p[k], 0);
+  $('tin').textContent = sum('in').toLocaleString();
+  $('tout').textContent = sum('out').toLocaleString();
+  $('rangeNote1').textContent = $('rangeNote2').textContent = RANGES[range].toLowerCase().replace(/^last /, 'last ');
+  if (data.lastReading) {
+    const ageMin = Math.round((Date.now() - new Date(data.lastReceived)) / 60000);
+    $('tlast').textContent = new Date(data.lastReading).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    $('tlastnote').textContent = ageMin <= 1 ? 'received just now' : `received ${ageMin} min ago`;
+    $('status').textContent = ageMin > 5 ? `No data for ${ageMin} minutes` : `Live · ${tz}`;
+  }
+
+  // table view
+  $('tablewrap').innerHTML = '<table><thead><tr><th>Time</th><th>Incoming</th><th>Outgoing</th></tr></thead><tbody>' +
+    pts.slice().reverse().map(p => `<tr><td>${fmtTime(p.t, b)}</td><td>${p.in}</td><td>${p.out}</td></tr>`).join('') + '</tbody></table>';
+
+  const chart = $('chart');
+  chart.querySelector('svg')?.remove();
+  if (!pts.length) {
+    chart.insertAdjacentHTML('afterbegin', '<svg viewBox="0 0 1 1" role="img" aria-label="No data" style="height:0"></svg><div class="empty">No data in this range yet.</div>');
+    return;
+  }
+  chart.querySelector('.empty')?.remove();
+
+  const t0 = new Date(pts[0].t).getTime(), t1 = new Date(pts[pts.length - 1].t).getTime();
+  const span = Math.max(t1 - t0, b * 1000);
+  const ymax = niceMax(Math.max(1, ...pts.map(p => Math.max(p.in, p.out))));
+  const x = t => M.l + (new Date(t).getTime() - t0) / span * (W - M.l - M.r);
+  const y = v => H - M.b - v / ymax * (H - M.t - M.b);
+
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Incoming and outgoing counts per ${b >= 3600 ? 'hour/day' : 'minute interval'}">`;
+  s += '<g class="grid">';
+  for (let i = 0; i <= 4; i++) {
+    const v = ymax / 4 * i;
+    s += `<line x1="${M.l}" x2="${W - M.r}" y1="${y(v)}" y2="${y(v)}"/><text x="${M.l - 8}" y="${y(v) + 4}" text-anchor="end">${+v.toFixed(1)}</text>`;
+  }
+  s += '</g>';
+  for (let i = 0; i <= 5; i++) {
+    const t = t0 + span / 5 * i;
+    s += `<text x="${x(t)}" y="${H - 8}" text-anchor="${i === 0 ? 'start' : i === 5 ? 'end' : 'middle'}">${fmtTime(new Date(t).toISOString(), b)}</text>`;
+  }
+  for (const se of SERIES) {
+    const d = pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.t).toFixed(1)},${y(p[se.key]).toFixed(1)}`).join('');
+    s += `<path d="${d}" fill="none" stroke="var(${se.css})" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    const last = pts[pts.length - 1];
+    s += `<circle cx="${x(last.t)}" cy="${y(last[se.key])}" r="4" fill="var(${se.css})" stroke="var(--surface-1)" stroke-width="2"/>`;
+  }
+  s += `<g id="hover" hidden><line y1="${M.t}" y2="${H - M.b}" stroke="var(--text-muted)" stroke-width="1"/>` +
+       SERIES.map(se => `<circle r="4" fill="var(${se.css})" stroke="var(--surface-1)" stroke-width="2" data-k="${se.key}"/>`).join('') + '</g>';
+  s += `<rect id="hit" x="${M.l}" y="${M.t}" width="${W - M.l - M.r}" height="${H - M.t - M.b}" fill="transparent"/></svg>`;
+  chart.insertAdjacentHTML('afterbegin', s);
+
+  const svg = chart.querySelector('svg'), hover = svg.querySelector('#hover'), tip = $('tip');
+  const move = ev => {
+    const r = svg.getBoundingClientRect();
+    const px = (ev.clientX - r.left) / r.width * W;
+    let best = 0, bd = Infinity;
+    pts.forEach((p, i) => { const dd = Math.abs(x(p.t) - px); if (dd < bd) { bd = dd; best = i; } });
+    const p = pts[best], cx = x(p.t);
+    hover.removeAttribute('hidden');
+    hover.querySelector('line').setAttribute('x1', cx); hover.querySelector('line').setAttribute('x2', cx);
+    hover.querySelectorAll('circle').forEach(c => { c.setAttribute('cx', cx); c.setAttribute('cy', y(p[c.dataset.k])); });
+    tip.innerHTML = `<b>${fmtTime(p.t, b)}</b>` + SERIES.map(se =>
+      `<div><span class="k"><i class="swatch" style="background:var(${se.css})"></i>${se.name}</span><span>${p[se.key]}</span></div>`).join('');
+    tip.style.display = 'block';
+    const left = cx / W * r.width;
+    tip.style.left = Math.min(Math.max(left + 12, 0), r.width - tip.offsetWidth) + 'px';
+    tip.style.top = '8px';
+  };
+  const leave = () => { hover.setAttribute('hidden', ''); tip.style.display = 'none'; };
+  svg.querySelector('#hit').addEventListener('pointermove', move);
+  svg.querySelector('#hit').addEventListener('pointerleave', leave);
+}
+
+async function load() {
+  try {
+    const r = await fetch(`api.php?range=${range}`, { cache: 'no-store' });
+    if (!r.ok) throw new Error(r.status);
+    data = await r.json();
+    render();
+  } catch (e) {
+    $('status').textContent = 'Could not load data';
+  }
+}
+
+$('ranges').innerHTML = Object.entries(RANGES).map(([k, v]) => `<button data-r="${k}" aria-pressed="${k === range}">${v}</button>`).join('');
+$('ranges').addEventListener('click', e => {
+  const k = e.target.dataset.r; if (!k) return;
+  range = k; history.replaceState(null, '', '?range=' + k);
+  $('ranges').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.r === k));
+  load();
+});
+$('toggle').addEventListener('click', () => {
+  const on = $('toggle').getAttribute('aria-pressed') !== 'true';
+  $('toggle').setAttribute('aria-pressed', on);
+  $('toggle').textContent = on ? 'Chart' : 'Table';
+  $('tablewrap').hidden = !on; $('chart').hidden = on;
+});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+load(); setInterval(load, 60000);
+</script>
+</body>
+</html>
