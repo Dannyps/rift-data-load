@@ -7,7 +7,7 @@ require(__DIR__ . "/sql/utils.php");
 
 // Nobody is in the building at RESET_HOUR (local time), so the balance restarts at zero then, every
 // day. Before the first reset in the data it starts from OPENING_BALANCE at the first reading.
-const OPENING_BALANCE = 0;
+const OPENING_BALANCE = 150;
 const RESET_HOUR = 4;
 const LOCAL_TZ = 'Europe/Lisbon';
 
