@@ -1,24 +1,32 @@
 <?php
 
-require("sql/utils.php");
+// Replays archived payloads into the database: php load_files.php [file ...]  (default: the live archive).
+// Safe to repeat: rows that already exist are skipped. Lines that fail are reported and skipped.
 
-$con = pg_connect("connection string");
+require(__DIR__ . "/src/log.php");
+require(__DIR__ . "/sql/utils.php");
 
-if (!$con) {
-    return -1;
+$con = db_connect();
+
+$files = array_slice($argv, 1) ?: [RECORDS_FILE];
+$loaded = $failed = 0;
+
+foreach ($files as $file) {
+    $lines = str_ends_with($file, '.gz') ? gzfile($file) : file($file);
+    foreach ($lines as $n => $line) {
+        $line = trim($line);
+        if ($line === '') {
+            continue;
+        }
+        try {
+            insert_line($con, $line);
+            $loaded++;
+        } catch (\Throwable $th) {
+            $failed++;
+            fwrite(STDERR, "$file:" . ($n + 1) . ": " . $th->getMessage() . "\n");
+        }
+    }
 }
 
-try {
-    ensure_schema_is_valid($con);
-} catch (\Throwable $th) {
-    var_dump($th->getMessage());
-    seed_database($con);
-}
-
-$lines = file('../repo/records', FILE_IGNORE_NEW_LINES);
-array_shift($lines);
-file_put_contents("../repo/records", "");
-
-foreach ($lines as $line) {
-    insert_line($con, $line);
-}
+echo "loaded $loaded, failed $failed\n";
+exit($failed ? 1 : 0);
