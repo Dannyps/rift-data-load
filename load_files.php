@@ -3,6 +3,11 @@
 // Replays archived payloads into the database: php load_files.php [file ...]  (default: the live archive).
 // Safe to repeat: rows that already exist are skipped. Lines that fail are reported and skipped.
 
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
+
 require(__DIR__ . "/src/log.php");
 require(__DIR__ . "/sql/utils.php");
 

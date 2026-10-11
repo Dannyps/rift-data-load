@@ -4,12 +4,7 @@
 // difference to the previous reading of the same register (a drop means the counter was reset).
 
 require(__DIR__ . "/sql/utils.php");
-
-// Nobody is in the building at RESET_HOUR (local time), so the balance restarts at zero then, every
-// day. Before the first reset in the data it starts from OPENING_BALANCE at the first reading.
-const OPENING_BALANCE = 150;
-const RESET_HOUR = 4;
-const LOCAL_TZ = 'Europe/Lisbon';
+require(__DIR__ . "/src/balance.php");
 
 const RANGES = [
     // range => [window, bucket]
@@ -32,36 +27,17 @@ header('Cache-Control: no-store');
 
 $con = db_connect();
 
-// The balance is the running in-out since the last reset. Deltas are computed over the whole
-// history, so the first reading after a reset still has a predecessor; buckets are aligned in UTC.
+// Buckets are aligned in UTC. The balance of a bucket is its last reading's.
+$since = new DateTimeImmutable("-$window");
 $res = pg_query_params($con, "
-    WITH deltas AS (
-        SELECT deviceid, logentryid, registerid, \"timestamp\",
-               CASE WHEN prev IS NULL THEN 0
-                    WHEN value >= prev THEN value - prev
-                    ELSE value END AS delta
-        FROM (SELECT deviceid, logentryid, registerid, \"timestamp\", value,
-                     lag(value) OVER (PARTITION BY deviceid, registerid ORDER BY \"timestamp\", logentryid) AS prev
-              FROM records) r
-    ), entries AS (
-        SELECT \"timestamp\", logentryid,
-               ((\"timestamp\" AT TIME ZONE 'UTC' AT TIME ZONE $5) - make_interval(hours => $4::int))::date AS day,
-               sum(delta) FILTER (WHERE registerid = 0) AS d_in,
-               sum(delta) FILTER (WHERE registerid = 1) AS d_out
-        FROM deltas GROUP BY deviceid, \"timestamp\", logentryid
-    ), balanced AS (
-        SELECT *, CASE WHEN day = min(day) OVER () THEN $3::int ELSE 0 END
-                  + sum(coalesce(d_in, 0) - coalesce(d_out, 0)) OVER (PARTITION BY day ORDER BY \"timestamp\", logentryid) AS balance
-        FROM entries
-    )
-    SELECT to_char(date_bin($2::interval, \"timestamp\", timestamp '2000-01-01'), 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS t,
-           sum(coalesce(d_in, 0))::int AS n_in, sum(coalesce(d_out, 0))::int AS n_out,
-           (array_agg(balance ORDER BY \"timestamp\" DESC, logentryid DESC))[1]::int AS balance,
+    SELECT to_char(date_bin($1::interval, \"timestamp\", timestamp '2000-01-01'), 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS t,
+           sum(d_in)::int AS n_in, sum(d_out)::int AS n_out,
+           (array_agg(balance ORDER BY \"timestamp\" DESC, logentryid DESC))[1] AS balance,
            (array_agg(day ORDER BY \"timestamp\" DESC, logentryid DESC))[1] AS day
-    FROM balanced
-    WHERE \"timestamp\" >= (now() AT TIME ZONE 'UTC') - $1::interval
+    FROM balance_entries($2, $3, $4, $5)
+    WHERE \"timestamp\" >= (now() AT TIME ZONE 'UTC') - $6::interval
     GROUP BY 1 ORDER BY 1
-", [$window, $bucket, OPENING_BALANCE, RESET_HOUR, LOCAL_TZ]);
+", [$bucket, day_start_utc($since), OPENING_BALANCE, RESET_HOUR, LOCAL_TZ, $window]);
 
 $points = [];
 while ($row = pg_fetch_assoc($res)) {

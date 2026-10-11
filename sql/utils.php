@@ -28,13 +28,21 @@ function ensure_schema($con)
     }
 }
 
+// Bump together with the COMMENT on balance_entries() in seed.sql whenever the function changes.
+const SCHEMA_VERSION = 'v1';
+
 function ensure_schema_is_valid($con)
 {
-    $res = pg_query($con, "SELECT EXISTS (
-        SELECT 1
-        FROM information_schema.columns
-        WHERE table_name = 'records' AND column_name = 'received_at'
-        ) AS schema_ok;");
+    $res = pg_query_params($con, "SELECT
+            to_regclass('records') IS NOT NULL
+        AND to_regclass('services') IS NOT NULL
+        AND to_regclass('special_days') IS NOT NULL
+        AND to_regclass('service_snapshots') IS NOT NULL
+        AND to_regclass('event_snapshots') IS NOT NULL
+        AND EXISTS (SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'records' AND column_name = 'received_at')
+        AND coalesce(obj_description(to_regprocedure('balance_entries(timestamp, int, int, text)'), 'pg_proc'), '') = $1
+        AS schema_ok", [SCHEMA_VERSION]);
 
     $res = pg_fetch_assoc($res);
 
