@@ -104,3 +104,39 @@ INSERT INTO services (name, weekday, start_time)
 SELECT 'Reunião das ' || to_char(t, 'HH24:MI'), 0, t
 FROM (VALUES (time '09:30'), (time '11:30'), (time '17:30')) v(t)
 WHERE NOT EXISTS (SELECT 1 FROM services);
+
+-- Admin accounts. The only privilege is can_manage_users. password_hash is argon2id; a legacy
+-- Apache '$apr1$' hash (imported from .htpasswd) is accepted once and replaced at the first login.
+CREATE TABLE IF NOT EXISTS admin_users (
+    id serial PRIMARY KEY,
+    username text NOT NULL UNIQUE CHECK (username ~ '^[a-z0-9._-]{3,32}$'),
+    password_hash text NOT NULL,
+    can_manage_users boolean NOT NULL DEFAULT false,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    last_login timestamptz
+);
+
+CREATE TABLE IF NOT EXISTS admin_login_failures (
+    at timestamptz NOT NULL DEFAULT now(),
+    username text NOT NULL,
+    ip text NOT NULL
+);
+CREATE INDEX IF NOT EXISTS admin_login_failures_at ON admin_login_failures (at);
+
+CREATE TABLE IF NOT EXISTS admin_audit (
+    id bigserial PRIMARY KEY,
+    at timestamptz NOT NULL DEFAULT now(),
+    username text NOT NULL,
+    action text NOT NULL,
+    detail text
+);
+
+-- Who corrected a count, when and why.
+ALTER TABLE service_snapshots
+    ADD COLUMN IF NOT EXISTS correction_note text,
+    ADD COLUMN IF NOT EXISTS corrected_by text,
+    ADD COLUMN IF NOT EXISTS corrected_at timestamptz;
+ALTER TABLE event_snapshots
+    ADD COLUMN IF NOT EXISTS correction_note text,
+    ADD COLUMN IF NOT EXISTS corrected_by text,
+    ADD COLUMN IF NOT EXISTS corrected_at timestamptz;

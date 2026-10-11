@@ -1,0 +1,32 @@
+header { align-items: center; }
+.who { display: flex; gap: 12px; align-items: center; }
+.sub a, a.sub { color: var(--text-secondary); }
+h2 { font-size: 18px; font-weight: 600; margin: 24px 0 12px; }
+h3 { font-size: 15px; font-weight: 600; margin: 24px 0 8px; }
+form.inline { display: inline-flex; gap: 8px; align-items: center; margin: 0; }
+.flash { padding: 10px 14px; border-radius: 6px; margin: 16px 0 0; background: var(--surface-2); border-left: 3px solid var(--series-bal); }
+.flash.error { border-left-color: var(--series-out); }
+.card { background: var(--surface-2); border-radius: 8px; padding: 16px; margin: 12px 0; }
+.card.narrow { max-width: 420px; }
+label { display: block; font-size: 13px; color: var(--text-secondary); margin: 8px 0 2px; }
+label.check { display: flex; align-items: center; gap: 8px; color: var(--text-primary); }
+input[type=text], input[type=password], input[type=number], input[type=date], input[type=time], select, textarea {
+  font: inherit; color: var(--text-primary); background: var(--surface-1); border: 1px solid var(--grid);
+  border-radius: 6px; padding: 6px 8px; width: 100%; max-width: 100%;
+}
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--series-in); outline-offset: 1px; }
+.row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.row > div { flex: 1 1 140px; }
+.row label { margin-top: 0; }
+button.primary { background: var(--text-primary); color: var(--surface-1); border-color: var(--text-primary); }
+button.danger { color: var(--series-out); border-color: var(--series-out); }
+button { white-space: nowrap; }
+.tablewrap { max-height: none; overflow-x: auto; }
+table.admin td, table.admin th { text-align: left; vertical-align: middle; }
+table.admin td form { margin: 0; }
+table.admin input, table.admin select { min-width: 60px; }
+.hint { color: var(--text-muted); font-size: 13px; margin: 4px 0 0; }
+.tag { font-size: 11px; background: var(--surface-1); border-radius: 10px; padding: 1px 8px; color: var(--text-secondary); }
+.actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.hint + .actions { margin-top: 12px; }
+.actions { align-items: center; }

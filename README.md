@@ -11,6 +11,7 @@ church meeting. Runs on `altair` (Apache + mod_php, Postgres in Docker).
 | `/` | charts: entries/exits per interval, and the estimated balance of people inside |
 | `/reunioes` | attendance per meeting for a week (Sunday to Saturday), plus event cards |
 | `/api/chart`, `/api/services` | JSON for those pages |
+| `/admin` | login-protected admin area (below) |
 | `/load_from_request.php` | where the device POSTs; requires its `Authorization` token |
 
 Clean URLs are Apache rewrite rules in the vhost (`deploy/apache/`). `sql/`, `src/` and the CLI scripts are not served.
@@ -30,13 +31,28 @@ Clean URLs are Apache rewrite rules in the vhost (`deploy/apache/`). `sql/`, `sr
    / `event_snapshots`, updated while running and frozen 10 minutes after the window ends
    (`src/services.php`). The database and code call meetings "services"; the interface says "reuniões".
 
+## Admin area (`/admin`)
+
+A login form (`admin.php`, `src/auth.php`; pages in Portuguese). Accounts are in `admin_users`; the only
+privilege is **can manage users**. Everyone can edit weekly meetings, special days and corrections, and
+change their own password; users with the privilege also add and remove users, reset passwords and grant
+or withdraw the privilege (there must always be at least one such user, and you can't remove yourself).
+Every change is written to the audit log (`/admin/registo`).
+
+- Passwords: argon2id, at least 10 characters. An Apache `$apr1$` hash imported from `.htpasswd` works once and
+  is upgraded at the first login. Five failed attempts per user (30 per IP) lock logins for 15 minutes.
+- Session cookie: Secure, HttpOnly, SameSite=Strict, limited to `/admin`, 8 h idle timeout; every POST needs a
+  CSRF token; a strict CSP (no inline scripts or styles).
+- First users: `php admin_user.php import-htpasswd dannyps --manage` (reuses the `/internal` password),
+  `php admin_user.php create USER [--manage]`, `php admin_user.php list`.
+
 ## Configuration
 
-- Weekly meetings: table `services` (seeded: Sundays 09:30, 11:30, 17:30).
-- Special days replace that date's meetings:
-  `php special_day.php add 2026-12-19 "Especial de Natal" 11:30 17:30 [--duration=120]`, `list`, `remove DATE`.
-- Fix a count: `UPDATE service_snapshots SET corrected_peak = N WHERE day = '...' AND start_time = '...'`.
-  To recompute a frozen row, delete it.
+- Weekly meetings (table `services`, seeded: Sundays 09:30, 11:30, 17:30), special days and count corrections
+  are edited in the admin area. A special day replaces that date's meetings. A correction (with a note) wins
+  over the computed peak; "Recalcular" deletes the saved row so it is recomputed.
+- The same from the shell: `php special_day.php add 2026-12-19 "Especial de Natal" 11:30 17:30 [--duration=120]`,
+  `list`, `remove DATE`.
 - Secrets live outside the repo: `/etc/rift-data-load/db.ini` and `auth-token` (root:www-data, 640).
 - The schema is created and migrated automatically (`sql/utils.php`, `SCHEMA_VERSION`; bump it together
   with the comment on `balance_entries()` when that function changes).

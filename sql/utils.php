@@ -39,6 +39,11 @@ function ensure_schema_is_valid($con)
         AND to_regclass('special_days') IS NOT NULL
         AND to_regclass('service_snapshots') IS NOT NULL
         AND to_regclass('event_snapshots') IS NOT NULL
+        AND to_regclass('admin_users') IS NOT NULL
+        AND to_regclass('admin_audit') IS NOT NULL
+        AND to_regclass('admin_login_failures') IS NOT NULL
+        AND EXISTS (SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'event_snapshots' AND column_name = 'correction_note')
         AND EXISTS (SELECT 1 FROM information_schema.columns
                     WHERE table_name = 'records' AND column_name = 'received_at')
         AND coalesce(obj_description(to_regprocedure('balance_entries(timestamp, int, int, text)'), 'pg_proc'), '') = $1
