@@ -1,0 +1,3 @@
+*.priv
+*.ini
+.env
