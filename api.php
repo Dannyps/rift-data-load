@@ -44,6 +44,16 @@ while ($row = pg_fetch_assoc($res)) {
     $points[] = ['t' => $row['t'], 'in' => (int)$row['n_in'], 'out' => (int)$row['n_out'], 'balance' => (int)$row['balance'], 'epoch' => $row['epoch']];
 }
 
+// A reset shows as zero from the moment it was pressed, even before the first reading of the new epoch
+// arrives (the device is about 4 minutes late). Once such a reading is there, the real points take over.
+$known = array_column($points, 'epoch');
+foreach (manual_resets_since($con, $since) as $at) {
+    if (!in_array($at, $known, true)) {
+        $points[] = ['t' => (new DateTimeImmutable($at, new DateTimeZone('UTC')))->format('Y-m-d\TH:i:s\Z'), 'in' => 0, 'out' => 0, 'balance' => 0, 'epoch' => $at];
+    }
+}
+usort($points, fn($a, $b) => strcmp($a['t'], $b['t']));
+
 $last = pg_fetch_assoc(pg_query($con, "SELECT to_char(max(\"timestamp\"), 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS t, max(received_at) AS r FROM records"));
 
 echo json_encode([

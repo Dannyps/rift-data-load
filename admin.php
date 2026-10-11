@@ -445,11 +445,16 @@ if ($route === '/contadores') {
 
     $last = rows($con, "SELECT balance, \"timestamp\", epoch FROM balance_entries($1, $2, $3, $4) ORDER BY \"timestamp\" DESC, logentryid DESC LIMIT 1",
         [day_start_utc(new DateTimeImmutable('now', utc())), OPENING_BALANCE, RESET_HOUR, LOCAL_TZ])[0] ?? null;
+    $resetNow = manual_resets_since($con, new DateTimeImmutable('-1 day', utc()));
+    $lastReset = $resetNow ? end($resetNow) : null;
+    if ($last && $lastReset && $last['epoch'] < $lastReset) {
+        $last = ['balance' => 0, 'timestamp' => $lastReset, 'epoch' => $lastReset, 'reset' => true];   // reset pressed, no newer reading yet
+    }
     $body = '<p class="hint">O saldo de pessoas dentro do edifício repõe-se sozinho a zero todos os dias às ' . str_pad((string)RESET_HOUR, 2, '0', STR_PAD_LEFT)
         . ':00. Se tiver a certeza de que não está ninguém no edifício, pode repô-lo agora: a partir deste momento o saldo conta de zero, tal como na reposição das ' . str_pad((string)RESET_HOUR, 2, '0', STR_PAD_LEFT)
         . ':00. As contagens das reuniões já terminadas não mudam, e o máximo de uma reunião a decorrer mantém o que já atingiu. Isto não altera o contador do dispositivo.</p>'
         . '<div class="card"><p>Saldo atual estimado: <strong>' . ($last ? h($last['balance']) : '–') . '</strong>'
-        . ($last ? ' <span class="hint">(última leitura às ' . h(fmt_local($last['timestamp'], 'H:i')) . ')</span>' : '') . '</p>'
+        . ($last ? ' <span class="hint">(' . (!empty($last['reset']) ? 'reposto às ' : 'última leitura às ') . h(fmt_local($last['timestamp'], 'H:i')) . ')</span>' : '') . '</p>'
         . '<form method="post" data-confirm="Confirma que não está ninguém no edifício? O saldo vai voltar a zero agora.">' . csrf_field() . '<input type="hidden" name="action" value="reset">'
         . '<div class="row"><div><label for="note">Nota (opcional)</label><input type="text" id="note" name="note" maxlength="200" placeholder="Ex.: edifício vazio entre reuniões"></div>'
         . '<div><button class="danger">Repor saldo a zero agora</button></div></div></form></div>'

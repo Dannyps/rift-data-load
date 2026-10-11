@@ -30,3 +30,14 @@ function balance_entries($con, ?DateTimeImmutable $since): array
     );
     return pg_fetch_all($res) ?: [];
 }
+
+/**
+ * Manual resets (naive UTC strings) since $since. The device reports about 4 minutes late, so for a
+ * while after a reset no reading belongs to the new epoch yet; callers show zero from the reset on.
+ */
+function manual_resets_since($con, DateTimeImmutable $since): array
+{
+    $res = pg_query_params($con, "SELECT at FROM balance_resets WHERE at >= $1 AND at <= (now() AT TIME ZONE 'UTC') ORDER BY at",
+        [$since->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s')]);
+    return array_column(pg_fetch_all($res) ?: [], 'at');
+}
