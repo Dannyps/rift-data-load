@@ -42,8 +42,5 @@ This project supports two main data ingestion flows:
 - JSON must match expected format: top-level `CountLogs[0]->Counts` array.
 - File paths are relative and may assume a specific directory structure.
 
-## References
-- See `.github/copilot-instructions.md` for AI agent guidance and deeper codebase conventions.
-
 ---
 For questions or improvements, please open an issue or pull request.

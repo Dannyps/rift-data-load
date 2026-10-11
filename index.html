@@ -72,6 +72,8 @@
   th:first-child, td:first-child { text-align: left; }
   th { color: var(--text-secondary); font-weight: 500; }
   .tablewrap { max-height: 320px; overflow: auto; }
+  footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--grid); color: var(--text-secondary); font-size: 13px; }
+  footer p { margin: 0 0 8px; max-width: 70ch; }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -96,6 +98,16 @@
 
   <div id="chart"><div class="tip" id="tip"></div></div>
   <div id="tablewrap" class="tablewrap" hidden></div>
+  <footer>
+    <p><b>What the values mean.</b> Each point is the number of people counted in one interval
+      (<span id="bucketNote">a few minutes</span>), not a running total. <i>Incoming</i> counts people
+      passing the line in the entering direction, <i>outgoing</i> in the leaving direction.</p>
+    <p>The counter reports a cumulative total once a minute. The values here are the difference between
+      consecutive readings, summed per interval; if the counter drops (a reset), the new reading counts as
+      the increase. The first reading in the database has nothing to compare with and counts as zero.</p>
+    <p>The tiles add up every interval in the selected range. <i>Last reading</i> is the time stamped by
+      the counter, and <i>received</i> is when the server got it. Times are shown in your local time zone.</p>
+  </footer>
 </main>
 
 <script>
@@ -128,6 +140,8 @@ function niceMax(v) {
 function render() {
   if (!data) return;
   const pts = data.points, b = data.bucketSeconds;
+  const unit = b >= 86400 ? 'one day' : b >= 3600 ? 'one hour' : b === 60 ? 'one minute' : `${b / 60} minutes`;
+  $('bucketNote').textContent = unit + ' for this range';
   const sum = k => pts.reduce((s, p) => s + p[k], 0);
   $('tin').textContent = sum('in').toLocaleString();
   $('tout').textContent = sum('out').toLocaleString();
