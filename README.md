@@ -46,6 +46,8 @@ Pages: Reuniões (weekly meetings), Dias especiais (+ Planning Center sync statu
 
 - Passwords: argon2id, at least 10 characters. An Apache `$apr1$` hash imported from `.htpasswd` works once and
   is upgraded at the first login. Five failed attempts per user (30 per IP) lock logins for 15 minutes.
+- On phones (up to 720 px) the admin navigation is a slide-in sidebar opened by a menu button (closes with Escape, the
+  backdrop, a link or a wider screen); on wider screens it is the top bar.
 - Session cookie: Secure, HttpOnly, SameSite=Strict, limited to `/admin`, 8 h idle timeout; every POST needs a
   CSRF token; a strict CSP (no inline scripts or styles).
 - First users: `php admin_user.php import-htpasswd dannyps --manage` (reuses the `/internal` password),

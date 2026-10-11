@@ -30,3 +30,34 @@ table.admin input, table.admin select { min-width: 60px; }
 .actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .hint + .actions { margin-top: 12px; }
 .actions { align-items: center; }
+
+/* ---- navigation: top bar on wide screens, slide-in sidebar on phones ---- */
+header .title { display: flex; align-items: center; gap: 12px; }
+.menu-toggle { display: none; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; border-radius: 8px; }
+.menu-toggle .bars, .menu-toggle .bars::before, .menu-toggle .bars::after {
+  display: block; width: 18px; height: 2px; background: var(--text-primary); border-radius: 1px; content: ""; position: relative;
+}
+.menu-toggle .bars::before { position: absolute; top: -6px; }
+.menu-toggle .bars::after { position: absolute; top: 6px; }
+.nav .nav-site { display: none; }
+.nav-backdrop { display: none; }
+
+@media (max-width: 720px) {
+  .menu-toggle { display: inline-flex; }
+  header .who a.sub { display: none; }
+  .nav {
+    position: fixed; top: 0; bottom: 0; left: 0; z-index: 30; width: min(280px, 82vw);
+    flex-direction: column; gap: 0; margin: 0; padding: 72px 0 16px; overflow-y: auto;
+    background: var(--surface-2); border-right: 1px solid var(--grid); font-size: 16px;
+    transform: translateX(-100%); visibility: hidden;
+    transition: transform .2s ease, visibility 0s linear .2s;
+  }
+  .nav a, .nav .nav-site { display: block; padding: 12px 24px; border-bottom: 0; border-left: 3px solid transparent; }
+  .nav a[aria-current="page"] { border-left-color: var(--series-bal); background: var(--surface-1); }
+  .nav .nav-site { margin-top: 12px; border-top: 1px solid var(--grid); color: var(--text-muted); }
+  body.nav-open .nav { transform: none; visibility: visible; transition: transform .2s ease; }
+  body.nav-open .nav-backdrop { display: block; position: fixed; inset: 0; z-index: 20; background: rgba(0, 0, 0, .4); }
+  body.nav-open { overflow: hidden; }
+  .menu-toggle { position: relative; z-index: 40; }
+  @media (prefers-reduced-motion: reduce) { .nav, body.nav-open .nav { transition: none; } }
+}

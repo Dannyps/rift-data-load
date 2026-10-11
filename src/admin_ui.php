@@ -44,7 +44,7 @@ function page(string $title, string $body, ?array $user, string $active = ''): n
     header('Referrer-Policy: same-origin');
     header("Content-Security-Policy: default-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'; form-action 'self'");
 
-    $nav = '';
+    $nav = $toggle = '';
     if ($user) {
         $items = ['reunioes' => 'Reuniões', 'dias-especiais' => 'Dias especiais', 'pessoas' => 'Pessoas', 'correcoes' => 'Correções', 'contadores' => 'Contadores'];
         if ($user['can_manage_users']) {
@@ -52,11 +52,13 @@ function page(string $title, string $body, ?array $user, string $active = ''): n
         }
         $items['palavra-passe'] = 'Palavra-passe';
         $items['registo'] = 'Registo';
-        $nav = '<nav class="nav" aria-label="Administração">';
+        // Top bar on wide screens; on phones the same nav is a slide-in sidebar opened by the menu button.
+        $nav = '<nav class="nav" id="adminnav" aria-label="Administração">';
         foreach ($items as $slug => $label) {
             $nav .= '<a href="/admin/' . $slug . '"' . ($slug === $active ? ' aria-current="page"' : '') . '>' . h($label) . '</a>';
         }
-        $nav .= '</nav>';
+        $nav .= '<a class="nav-site" href="/reunioes">Ver o site</a></nav><div class="nav-backdrop" id="navbackdrop" hidden></div>';
+        $toggle = '<button type="button" class="menu-toggle" id="menutoggle" aria-controls="adminnav" aria-expanded="false" aria-label="Abrir o menu"><span class="bars" aria-hidden="true"></span></button>';
     }
 
     $flashes = '';
@@ -73,7 +75,7 @@ function page(string $title, string $body, ?array $user, string $active = ''): n
     echo '<!doctype html><html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
         . '<meta name="robots" content="noindex"><title>' . h($title) . ' · Administração RIFT</title>'
         . '<link rel="stylesheet" href="/assets/common.css"><link rel="stylesheet" href="/assets/admin.css"></head><body><main>'
-        . '<header><h1>Administração</h1><div class="who"><a class="sub" href="/reunioes">Ver o site</a> ' . $who . '</div></header>'
+        . '<header><div class="title">' . $toggle . '<h1>Administração</h1></div><div class="who"><a class="sub" href="/reunioes">Ver o site</a> ' . $who . '</div></header>'
         . $nav . $flashes . '<h2>' . h($title) . '</h2>' . $body
         . '</main><script src="/assets/admin.js"></script></body></html>';
     exit;
