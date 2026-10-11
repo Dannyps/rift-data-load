@@ -7,6 +7,7 @@
 // (event_snapshots, at most one per local day).
 
 require_once(__DIR__ . "/balance.php");
+require_once(__DIR__ . "/pco.php");
 
 const EVENT_THRESHOLD = 5;
 // The device reports each minute about 4 minutes late, so wait before freezing.
@@ -182,6 +183,82 @@ function snapshot_event($con, string $day, DateTimeImmutable $dayStart, array $e
     ", [$day, $first, $last, $peak, $peakAt, $frozen ? 't' : 'f']);
 }
 
+const PEOPLE_ROLES = ['mc' => 'MC', 'oferta' => 'Oferta', 'lider' => 'Líder louvor', 'pregador' => 'Pregador'];
+
+/**
+ * The people on each meeting of the week, "day start_time" => [role => ['value' => text|null, 'source' => 'pco'|'manual'|null]]
+ * or null when no Planning Center plan matches the meeting and nothing was set by hand.
+ * A plan matches a meeting of its day that starts within the plan's service times (30 min early allowed):
+ * the Sunday morning plan covers both the 09:30 and the 11:30 meeting. Manual overrides win.
+ */
+function week_people($con, string $sunday, array $services, bool $withOverrides = true): array
+{
+    $plans = [];
+    foreach (pg_fetch_all(pg_query_params($con, 'SELECT * FROM pco_plans WHERE day BETWEEN $1::date AND $1::date + 6 ORDER BY service_type_id', [$sunday])) ?: [] as $r) {
+        $plans[$r['day']][] = ['times' => json_decode($r['service_times'], true), 'raw' => json_decode($r['people_raw'] ?? 'null', true)];
+    }
+    $overrides = [];
+    foreach (pg_fetch_all(pg_query_params($con, "SELECT day, to_char(start_time, 'HH24:MI') AS t, role, value FROM people_overrides WHERE day BETWEEN $1::date AND $1::date + 6", [$sunday])) ?: [] as $r) {
+        $overrides[$r['day'] . ' ' . $r['t']][$r['role']] = $r['value'];
+    }
+    if (!$withOverrides) {
+        $overrides = [];
+    }
+
+    // meetings of each day, to split tagged notes ("9h30 X / 11h30 Y") per meeting
+    $byDay = [];
+    foreach ($services as $s) {
+        $byDay[$s['day']][] = substr($s['start_time'], 0, 5);
+    }
+
+    $out = [];
+    foreach ($services as $s) {
+        $time = substr($s['start_time'], 0, 5);
+        $key = $s['day'] . ' ' . $time;
+        $wall = strtotime($s['day'] . ' ' . $time);
+        $matched = [];
+        foreach ($plans[$s['day']] ?? [] as $plan) {
+            foreach ($plan['times'] as $t) {
+                if ($wall >= strtotime($t['start']) - PCO_MATCH_SLACK_MIN * 60 && $wall <= strtotime($t['end'])) {
+                    $matched[] = $plan;
+                    break;
+                }
+            }
+        }
+        $manual = $overrides[$key] ?? [];
+        if (!$matched && !$manual) {
+            $out[$key] = null;
+            continue;
+        }
+
+        $people = [];
+        foreach (array_keys(PEOPLE_ROLES) as $role) {
+            $value = $source = $flag = null;
+            if (isset($manual[$role])) {
+                [$value, $source] = [$manual[$role], 'manual'];
+            } else {
+                foreach ($matched as $plan) {
+                    $raw = $plan['raw'] ?? null;
+                    if ($role === 'lider') {
+                        $v = $raw && $raw['lider'] ? implode(' e ', $raw['lider']) : null;
+                    } else {
+                        [$parsed, $flags] = $raw ? pco_parse_person($raw[$role] ?? null, $byDay[$s['day']]) : [[], []];
+                        $v = $parsed[$time] ?? null;
+                        $flag = $flags ? implode(', ', $flags) : null;
+                    }
+                    if ($v !== null && $v !== '') {
+                        [$value, $source] = [$v, 'pco'];
+                        break;
+                    }
+                }
+            }
+            $people[$role] = ['value' => $value, 'source' => $source, 'flag' => $source === 'pco' ? $flag : null];
+        }
+        $out[$key] = $people;
+    }
+    return $out;
+}
+
 /** The saved state shaped for the page: only days with a scheduled service or an event. */
 function week_view($con, DateTimeImmutable $now, string $sunday, array $services): array
 {
@@ -195,6 +272,8 @@ function week_view($con, DateTimeImmutable $now, string $sunday, array $services
     foreach (pg_fetch_all(pg_query_params($con, "SELECT * FROM event_snapshots WHERE day BETWEEN $1::date AND $1::date + 6", [$sunday])) ?: [] as $r) {
         $events[$r['day']] = $r;
     }
+
+    $people = week_people($con, $sunday, $services);
 
     $days = [];
     foreach ($services as $s) {
@@ -224,6 +303,7 @@ function week_view($con, DateTimeImmutable $now, string $sunday, array $services
             'count' => $count,
             'partial' => $status !== 'unknown' && $row && $row['partial'] === 't',
             'special' => $s['special'] === 't',
+            'people' => $people[$s['day'] . ' ' . substr($s['start_time'], 0, 5)] ?? null,
         ];
     }
     foreach ($events as $day => $e) {
@@ -257,4 +337,12 @@ function week_view($con, DateTimeImmutable $now, string $sunday, array $services
         'timezone' => LOCAL_TZ,
         'days' => $out,
     ];
+}
+
+/** What Planning Center alone gives for one role of one meeting ("day HH:MM" key), ignoring manual overrides. */
+function pco_value_for($con, string $sunday, array $services, string $key, string $role): ?string
+{
+    static $cache = [];
+    $cache[$sunday] ??= week_people($con, $sunday, $services, false);
+    return $cache[$sunday][$key][$role]['value'] ?? null;
 }

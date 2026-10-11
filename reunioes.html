@@ -22,6 +22,10 @@
   .card .count.unknown { font-size: 22px; font-weight: 500; color: var(--text-muted); line-height: 2; }
   .card .state { font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
   .card .note { font-size: 12px; color: var(--text-muted); }
+  .people { margin: 10px 0 0; padding-top: 8px; border-top: 1px solid var(--grid); display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 13px; }
+  .people dt { color: var(--text-muted); }
+  .people dd { margin: 0; color: var(--text-primary); overflow-wrap: anywhere; }
+  .people dd.tbd { color: var(--text-muted); font-style: italic; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--series-bal); display: inline-block; animation: pulse 2s ease-in-out infinite; }
   .card.event { border-left: 3px solid var(--series-out); }
   @keyframes pulse { 50% { opacity: .35; } }
@@ -55,6 +59,7 @@
     <p>Em dias sem reunião, quando há mais de 5 pessoas dentro aparece um cartão de <i>evento</i>, com a hora a que
       passou das 5 pessoas, a hora a que deixou de haver e o máximo atingido. Os dias especiais substituem as reuniões
       habituais da sua data.</p>
+    <p>Os nomes (MC, oferta, líder de louvor e pregador) vêm do Planning Center e podem ser corrigidos por um administrador; enquanto não estiverem preenchidos aparece <i>por anunciar</i>.</p>
     <p>O número de pessoas dentro é uma estimativa a partir das entradas e saídas (ver a página de gráficos) e é reposto
       a zero às 04:00 (ou por um administrador, quando se confirma que o edifício está vazio). Quando o contador só começou a registar depois do início da reunião, o valor indica
       <i>dados parciais</i> e pode ficar abaixo do real. O contador envia os dados com cerca de 4 minutos de atraso.
@@ -77,6 +82,19 @@ const hhmm = iso => new Date(iso).toLocaleTimeString(LOCALE, { hour: '2-digit', 
 const dateOf = ymd => new Date(ymd + 'T12:00:00Z');
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+const ROLES = [['mc', 'MC'], ['oferta', 'Oferta'], ['lider', 'Líder louvor'], ['pregador', 'Pregador']];
+
+// People from Planning Center (or set by an admin). Empty roles say "por anunciar" until the meeting is over.
+function peopleBlock(s) {
+  if (!s.people) return '';
+  const rows = ROLES.map(([k, label]) => {
+    const v = s.people[k] && s.people[k].value;
+    if (v) return `<dt>${label}</dt><dd>${esc(v)}</dd>`;
+    return s.status === 'done' ? '' : `<dt>${label}</dt><dd class="tbd">por anunciar</dd>`;
+  }).join('');
+  return rows ? `<dl class="people">${rows}</dl>` : '';
+}
+
 function serviceCard(s) {
   let count, state;
   if (s.status === 'unknown') {
@@ -89,7 +107,7 @@ function serviceCard(s) {
       : `<div class="state">Terminou às ${hhmm(s.end)}</div>`;
   }
   const partial = s.partial && s.status !== 'unknown' ? '<div class="note">Dados parciais: o contador começou depois do início da reunião.</div>' : '';
-  return `<div class="card"><div class="title"><span>${esc(s.name)}${s.special ? ' <span class="badge">dia especial</span>' : ''}</span><span class="time">${s.time}</span></div>${count}${state}${partial}</div>`;
+  return `<div class="card"><div class="title"><span>${esc(s.name)}${s.special ? ' <span class="badge">dia especial</span>' : ''}</span><span class="time">${s.time}</span></div>${count}${state}${partial}${peopleBlock(s)}</div>`;
 }
 
 function eventCard(e) {

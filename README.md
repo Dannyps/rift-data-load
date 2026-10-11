@@ -25,7 +25,9 @@ Clean URLs are Apache rewrite rules in the vhost (`deploy/apache/`). `sql/`, `sr
    `ingest.log`. Re-delivered entries are ignored.
 3. The counters are **cumulative**. `balance_entries()` (`sql/seed.sql`) turns them into per-reading
    changes and a running balance of people inside. The balance restarts at zero every day at 04:00
-   Europe/Lisbon, and on the first day in the data it starts at `OPENING_BALANCE` (`src/balance.php`).
+   Europe/Lisbon, or when an admin presses "Repor saldo a zero agora" (Admin → Contadores, after confirming that the
+   building is empty; effective from the first reading stamped after the click; can be undone), and on the first day
+   in the data it starts at `OPENING_BALANCE` (`src/balance.php`).
 4. A meeting's count is the peak balance in its window (start to start + duration, default 2 h). On days
    without meetings, more than 5 people inside makes an "event". Results are saved in `service_snapshots`
    / `event_snapshots`, updated while running and frozen 10 minutes after the window ends
@@ -39,12 +41,36 @@ change their own password; users with the privilege also add and remove users, r
 or withdraw the privilege (there must always be at least one such user, and you can't remove yourself).
 Every change is written to the audit log (`/admin/registo`).
 
+Pages: Reuniões (weekly meetings), Dias especiais (+ Planning Center sync status), Pessoas, Correções, Contadores
+(manual balance reset), Utilizadores, Palavra-passe, Registo.
+
 - Passwords: argon2id, at least 10 characters. An Apache `$apr1$` hash imported from `.htpasswd` works once and
   is upgraded at the first login. Five failed attempts per user (30 per IP) lock logins for 15 minutes.
 - Session cookie: Secure, HttpOnly, SameSite=Strict, limited to `/admin`, 8 h idle timeout; every POST needs a
   CSRF token; a strict CSP (no inline scripts or styles).
 - First users: `php admin_user.php import-htpasswd dannyps --manage` (reuses the `/internal` password),
   `php admin_user.php create USER [--manage]`, `php admin_user.php list`.
+
+## Planning Center (people and special days)
+
+`pco_sync.php` (every 30 minutes, `rift-pco-sync.timer`; also the "Sincronizar agora" button in admin) reads
+Planning Center Services with the token in `/etc/rift-data-load/pco.ini` (`client_id`, `secret`; root:www-data 640).
+It follows the folders Porto and Young Adults & Youth (`src/pco.php`: `PCO_ROOT_FOLDERS`), never Kids.
+
+- **Special days:** a plan on any day except Sunday becomes a special day (2 h, named after the plan title, or the
+  service type's name when it has none). A manual special day for the same date always wins; past days are never
+  touched; Sundays keep the weekly meetings.
+- **People on the meeting cards** (order MC, Oferta, Líder louvor, Pregador), found by fixed rules, no guessing:
+  the leader is the team member in position `a) Líder Louvor`; MC, preacher and offering speaker are the "Person"
+  note on the plan item whose title matches `^MC` (or "BOAS-VINDAS" on Youth/Young Adults), `PREGAÇÃO`, `^OFERTA`.
+  A line like `9h30 X`, `9:30 X` or `X (9:30)` applies to that meeting only; other lines to every meeting of the
+  plan. Names are shown as typed. A plan applies to the meetings of its day that start within its service times
+  (the Sunday morning plan covers 09:30 and 11:30). Empty roles show "por anunciar" until the meeting is over.
+  Admin → Pessoas overrides a name for one meeting.
+- **Gotcha:** the Planning Center account is set to America/Los_Angeles but the times in it are Portuguese
+  wall-clock times, so the sync reads them in that zone and treats them as Lisbon time.
+- `php pco_sync.php --dry-run` shows what would change; `--backfill-days=70` also reads the people of older plans;
+  `php tests/pco_test.php` runs the parser tests. If the sync has not worked for 6 hours the monitor emails you.
 
 ## Configuration
 
@@ -66,9 +92,11 @@ Reference copies of everything installed outside this repo are in `deploy/`.
 - `rift-postgres-backup.timer` (03:45): `pg_dump` into `rift-postgres/backups/`, verified, newest 14 plus
   Sundays for 8 weeks. Restore: `pg_restore -U rift -d <db> --no-owner < backups/rift-DATE.dump`.
   Same disk as the database: no off-host copy yet.
+- `rift-pco-sync.timer` (30 min): Planning Center sync (above).
 - `rift-snapshot.timer` (5 min): `snapshot.php` keeps meeting snapshots fresh and frozen.
 - `rift-monitor.timer` (1 min): emails root@altair.dannyps.net (Roundcube folder `altair.dannyps.net`) when
-  no data has arrived for 10 minutes, every 6 h while it persists, and when it recovers.
+  no data has arrived for 10 minutes, or the Planning Center sync has failed for 6 hours; repeats every 6 h while it
+  persists and when it recovers.
 - `php load_files.php [file...]` replays an archive (also `.gz`) into the database; safe to repeat.
 - logrotate keeps 52 weekly `records` and `ingest.log` files (`deploy/logrotate`).
 

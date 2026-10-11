@@ -164,3 +164,50 @@ ALTER TABLE event_snapshots
     ADD COLUMN IF NOT EXISTS correction_note text,
     ADD COLUMN IF NOT EXISTS corrected_by text,
     ADD COLUMN IF NOT EXISTS corrected_at timestamptz;
+
+-- ---------------------------------------------------------------- Planning Center (PCO)
+
+-- Special days come from admin ('manual', wins) or from Planning Center ('pco', refreshed by the sync).
+ALTER TABLE special_days
+    ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'manual',
+    ADD COLUMN IF NOT EXISTS pco_plan_id text;
+
+-- Every plan seen by the sync (Sundays included). service_times: JSON array of {start, end} as
+-- local wall-clock 'YYYY-MM-DD HH:MM' strings (what the church typed; see src/pco.php for the zone
+-- quirk). people_raw: {mc, oferta, pregador: raw note text or null, lider: [names]}; it is parsed
+-- when shown, because splitting per meeting needs the day's meeting times.
+CREATE TABLE IF NOT EXISTS pco_plans (
+    plan_id text PRIMARY KEY,
+    service_type_id text NOT NULL,
+    service_type_name text NOT NULL,
+    folder_path text,
+    day date NOT NULL,
+    title text,
+    service_times jsonb NOT NULL DEFAULT '[]',
+    people_raw jsonb,
+    people_fetched_at timestamptz,
+    fetched_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS pco_plans_day ON pco_plans (day);
+
+CREATE TABLE IF NOT EXISTS pco_sync_status (
+    id int PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    last_attempt timestamptz,
+    last_ok timestamptz,
+    plans int,
+    error text,
+    detail text
+);
+INSERT INTO pco_sync_status (id) VALUES (1) ON CONFLICT DO NOTHING;
+
+-- Manual per-meeting overrides of a person shown on the card; the value wins over Planning Center.
+-- role: mc | oferta | lider | pregador.
+CREATE TABLE IF NOT EXISTS people_overrides (
+    day date NOT NULL,
+    start_time time NOT NULL,
+    role text NOT NULL CHECK (role IN ('mc', 'oferta', 'lider', 'pregador')),
+    value text NOT NULL,
+    set_by text NOT NULL,
+    set_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (day, start_time, role)
+);

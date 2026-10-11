@@ -40,6 +40,11 @@ function ensure_schema_is_valid($con)
         AND to_regclass('service_snapshots') IS NOT NULL
         AND to_regclass('event_snapshots') IS NOT NULL
         AND to_regclass('balance_resets') IS NOT NULL
+        AND to_regclass('pco_plans') IS NOT NULL
+        AND to_regclass('pco_sync_status') IS NOT NULL
+        AND to_regclass('people_overrides') IS NOT NULL
+        AND EXISTS (SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'special_days' AND column_name = 'source')
         AND to_regclass('admin_users') IS NOT NULL
         AND to_regclass('admin_audit') IS NOT NULL
         AND to_regclass('admin_login_failures') IS NOT NULL

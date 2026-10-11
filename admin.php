@@ -163,6 +163,12 @@ if ($route === '/reunioes') {
 if ($route === '/dias-especiais') {
     if ($isPost) {
         $act = $_POST['action'] ?? '';
+        if ($act === 'sync') {
+            exec('/usr/bin/php ' . escapeshellarg(__DIR__ . '/pco_sync.php') . ' > /dev/null 2>&1 &');
+            audit($con, $user['username'], 'pco.sincronizar', 'pedida manualmente');
+            flash('ok', 'Sincronização com o Planning Center iniciada. Demora cerca de um minuto; atualize esta página para ver o resultado.');
+            back();
+        }
         $day = (string)($_POST['day'] ?? '');
         if (!is_date($day)) {
             flash('error', 'Data inválida.');
@@ -201,19 +207,27 @@ if ($route === '/dias-especiais') {
             $cur = ['day' => $edit, 'name' => $r[0]['name'], 'times' => implode(' ', array_column($r, 't')), 'duration_min' => $r[0]['duration_min']];
         }
     }
-    $body = '<p class="hint">Um dia especial substitui as reuniões habituais da sua data (por exemplo, o Especial de Natal a 19 de dezembro só às 11:30 e 17:30). Guardar uma data que já existe substitui as horas anteriores.</p>
+    $st = rows($con, "SELECT last_attempt, last_ok, plans, error, detail FROM pco_sync_status WHERE id = 1")[0] ?? [];
+    $syncBox = '<div class="card"><strong>Planning Center</strong> · ' . (!empty($st['last_ok']) ? 'última sincronização com sucesso: ' . h(fmt_local($st['last_ok'], 'd/m/Y H:i')) : 'ainda não sincronizado')
+        . (!empty($st['error']) ? '<div class="flash error" role="alert">Último erro (' . h(fmt_local($st['last_attempt'], 'd/m/Y H:i')) . '): ' . h($st['error']) . '</div>' : '')
+        . (!empty($st['detail']) ? '<div class="hint">' . h($st['detail']) . '</div>' : '')
+        . '<form method="post" class="inline">' . csrf_field() . '<input type="hidden" name="action" value="sync"><button>Sincronizar agora</button></form>'
+        . '<p class="hint">Os dias que não são domingo e têm um plano no Planning Center (pastas Porto e Young Adults &amp; Youth, sem Kids) tornam-se dias especiais com o nome do plano. '
+        . 'Um dia especial criado aqui tem prioridade sobre o do Planning Center.</p></div>';
+    $body = $syncBox . '<p class="hint">Um dia especial substitui as reuniões habituais da sua data (por exemplo, o Especial de Natal a 19 de dezembro só às 11:30 e 17:30). Guardar uma data que já existe substitui as horas anteriores.</p>
       <h3>' . ($cur['day'] ? 'Editar dia especial' : 'Adicionar dia especial') . '</h3><form method="post" class="card">' . csrf_field() . '<input type="hidden" name="action" value="save"><div class="row">
         <div><label for="day">Data</label><input type="date" id="day" name="day" value="' . h($cur['day']) . '" required></div>
         <div><label for="name">Nome</label><input type="text" id="name" name="name" value="' . h($cur['name']) . '" maxlength="60" required></div>
         <div><label for="times">Horas</label><input type="text" id="times" name="times" value="' . h($cur['times']) . '" placeholder="11:30 17:30" required></div>
         <div><label for="dur">Duração (min)</label><input type="number" id="dur" name="duration_min" value="' . h($cur['duration_min']) . '" min="15" max="600" required></div>
         <div><button class="primary">Guardar</button></div></div></form>
-      <h3>Dias especiais</h3><div class="tablewrap"><table class="admin"><thead><tr><th>Data</th><th>Nome</th><th>Horas</th><th>Duração</th><th></th></tr></thead><tbody>';
-    $days = rows($con, "SELECT day, name, string_agg(to_char(start_time, 'HH24:MI'), ' ' ORDER BY start_time) AS times, max(duration_min) AS dur FROM special_days GROUP BY day, name ORDER BY day DESC");
+      <h3>Dias especiais</h3><p class="hint">Os do Planning Center só se alteram lá; para mudar um aqui, use «Substituir» (cria um dia especial manual para essa data).</p><div class="tablewrap"><table class="admin"><thead><tr><th>Data</th><th>Nome</th><th>Horas</th><th>Duração</th><th></th></tr></thead><tbody>';
+    $days = rows($con, "SELECT day, name, string_agg(to_char(start_time, 'HH24:MI'), ' ' ORDER BY start_time) AS times, max(duration_min) AS dur, source FROM special_days GROUP BY day, name, source ORDER BY day DESC, name");
     foreach ($days as $d) {
         $body .= '<tr><td>' . h(date('d/m/Y', strtotime($d['day']))) . '</td><td>' . h($d['name']) . '</td><td>' . h($d['times']) . '</td><td>' . h($d['dur']) . ' min</td>'
-            . '<td><div class="actions"><a href="/admin/dias-especiais?edit=' . h($d['day']) . '"><button type="button">Editar</button></a>'
-            . '<form method="post" data-confirm="Remover este dia especial?">' . csrf_field() . '<input type="hidden" name="day" value="' . h($d['day']) . '"><button name="action" value="delete" class="danger">Remover</button></form></div></td></tr>';
+            . '<td><div class="actions">' . ($d['source'] === 'pco' ? '<span class="tag">Planning Center</span><a href="/admin/dias-especiais?edit=' . h($d['day']) . '"><button type="button">Substituir</button></a>'
+                : '<a href="/admin/dias-especiais?edit=' . h($d['day']) . '"><button type="button">Editar</button></a>'
+                . '<form method="post" data-confirm="Remover este dia especial?">' . csrf_field() . '<input type="hidden" name="day" value="' . h($d['day']) . '"><button name="action" value="delete" class="danger">Remover</button></form>') . '</div></td></tr>';
     }
     if (!$days) {
         $body .= '<tr><td colspan="5" class="hint">Ainda não há dias especiais.</td></tr>';
@@ -313,6 +327,95 @@ if ($route === '/correcoes') {
         . ($rows ?: '<tr><td colspan="5" class="hint">Ainda não há valores guardados nesta semana (as reuniões só aparecem aqui depois de começarem).</td></tr>')
         . '</tbody></table></div>';
     page('Correções', $body, $user, 'correcoes');
+}
+
+// ---------------------------------------------------------------- pessoas (MC, oferta, líder, pregador)
+
+if ($route === '/pessoas') {
+    $now = new DateTimeImmutable('now', utc());
+    $weekParam = (string)($_GET['week'] ?? $_POST['week'] ?? '');
+    $sunday = week_start(is_date($weekParam) ? $weekParam : $now->setTimezone(local_tz())->format('Y-m-d'));
+    $self = '/admin/pessoas?week=' . $sunday;
+
+    if ($isPost) {
+        $day = (string)($_POST['day'] ?? '');
+        $time = (string)($_POST['start_time'] ?? '');
+        if (!is_date($day) || !is_time($time)) {
+            flash('error', 'Pedido inválido.');
+            back($self);
+        }
+        $changes = [];
+        foreach (array_keys(PEOPLE_ROLES) as $role) {
+            $value = trim(preg_replace('/\s+/u', ' ', (string)($_POST[$role] ?? '')));
+            if (mb_strlen($value) > 120) {
+                flash('error', 'Cada nome pode ter no máximo 120 caracteres.');
+                back($self);
+            }
+            if ($value === '') {
+                $r = pg_query_params($con, 'DELETE FROM people_overrides WHERE day = $1 AND start_time = $2 AND role = $3', [$day, $time, $role]);
+                if (pg_affected_rows($r)) {
+                    $changes[] = "$role: removido";
+                }
+            } else {
+                $r = pg_query_params($con, "INSERT INTO people_overrides (day, start_time, role, value, set_by) VALUES ($1, $2, $3, $4, $5)
+                    ON CONFLICT (day, start_time, role) DO UPDATE SET value = EXCLUDED.value, set_by = EXCLUDED.set_by, set_at = now()
+                    WHERE people_overrides.value IS DISTINCT FROM EXCLUDED.value", [$day, $time, $role, $value, $user['username']]);
+                if (pg_affected_rows($r)) {
+                    $changes[] = "$role = $value";
+                }
+            }
+        }
+        if ($changes) {
+            audit($con, $user['username'], 'pessoas.guardar', "$day $time: " . implode('; ', $changes));
+            flash('ok', 'Guardado.');
+        }
+        back($self);
+    }
+
+    $services = scheduled_services($con, $sunday);
+    $shown = week_people($con, $sunday, $services);
+    $manual = [];
+    foreach (rows($con, "SELECT day, to_char(start_time, 'HH24:MI') AS t, role, value FROM people_overrides WHERE day BETWEEN $1::date AND $1::date + 6", [$sunday]) as $r) {
+        $manual[$r['day'] . ' ' . $r['t']][$r['role']] = $r['value'];
+    }
+    $prev = (new DateTimeImmutable($sunday))->modify('-7 days')->format('Y-m-d');
+    $next = (new DateTimeImmutable($sunday))->modify('+7 days')->format('Y-m-d');
+    $end = (new DateTimeImmutable($sunday))->modify('+6 days');
+
+    $body = '<p class="hint">Os nomes vêm do Planning Center (notas «Person» dos itens MC, Oferta e Pregação, e o líder de louvor da equipa). Escreva um nome para o substituir só nesta reunião; deixe vazio para voltar ao do Planning Center. Os valores do Planning Center aparecem a cinzento.</p>
+      <div class="actions"><a href="/admin/pessoas?week=' . h($prev) . '"><button type="button">◀ Semana anterior</button></a>
+      <strong>' . h(date('d/m/Y', strtotime($sunday))) . ' – ' . h($end->format('d/m/Y')) . '</strong>
+      <a href="/admin/pessoas?week=' . h($next) . '"><button type="button">Semana seguinte ▶</button></a></div>';
+    if (!$services) {
+        $body .= '<p class="hint">Sem reuniões nesta semana.</p>';
+    } else {
+        $body .= '<div class="tablewrap"><table class="admin"><thead><tr><th>Reunião</th>';
+        foreach (PEOPLE_ROLES as $label) {
+            $body .= '<th>' . h($label) . '</th>';
+        }
+        $body .= '<th></th></tr></thead><tbody>';
+        foreach ($services as $s) {
+            $t = substr($s['start_time'], 0, 5);
+            $key = $s['day'] . ' ' . $t;
+            $f = 'f' . preg_replace('/\D/', '', $key);
+            $pco = null;
+            $body .= '<tr><td>' . h($s['name']) . '<div class="hint">' . h(ucfirst(WEEKDAYS[(int)date('w', strtotime($s['day']))]) . ', ' . date('d/m', strtotime($s['day'])) . ' às ' . $t) . '</div></td>';
+            foreach (PEOPLE_ROLES as $role => $label) {
+                $p = $shown[$key][$role] ?? ['value' => null, 'source' => null, 'flag' => null];
+                $override = $manual[$key][$role] ?? '';
+                // what Planning Center alone would show: recompute without the override when one is set
+                $pcoValue = $p['source'] === 'pco' ? $p['value'] : null;
+                if ($override !== '') {
+                    $pcoValue = pco_value_for($con, $sunday, $services, $key, $role);
+                }
+                $body .= '<td><input form="' . $f . '" type="text" name="' . $role . '" value="' . h($override) . '" maxlength="120" aria-label="' . h($label) . '" placeholder="' . h($pcoValue ?? '—') . '">'
+                    . (!empty($p['flag']) && $override === '' ? '<div class="hint">texto livre no Planning Center</div>' : '') . '</td>';
+            }
+            $body .= '<td><form id="' . $f . '" method="post">' . csrf_field() . '<input type="hidden" name="week" value="' . h($sunday) . '"><input type="hidden" name="day" value="' . h($s['day']) . '"><input type="hidden" name="start_time" value="' . h($t) . '"><button class="primary">Guardar</button></form></td></tr>';
+        }
+        $body .= '</tbody></table></div>';
+    }
+    page('Pessoas', $body, $user, 'pessoas');
 }
 
 // ---------------------------------------------------------------- contadores (manual balance reset)
