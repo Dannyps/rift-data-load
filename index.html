@@ -66,7 +66,6 @@ let data = null;
 
 const $ = id => document.getElementById(id);
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 function fmtTime(iso, bucket) {
   const d = new Date(iso);
@@ -105,7 +104,7 @@ function render() {
     const ageMin = Math.round((Date.now() - new Date(data.lastReceived)) / 60000);
     $('tlast').textContent = new Date(data.lastReading).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' });
     $('tlastnote').textContent = ageMin <= 1 ? 'recebida agora mesmo' : `recebida há ${ageMin} min`;
-    $('status').textContent = ageMin > 5 ? `Sem dados há ${ageMin} minutos` : `Em direto · ${tz}`;
+    $('status').textContent = ageMin > 5 ? `Sem dados há ${ageMin} minutos` : `Atualizado às ${new Date().toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' })} · ${data.timezone}`;
   }
 
   // table view
