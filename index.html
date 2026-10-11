@@ -39,7 +39,7 @@
       o aumento. A primeira leitura da base de dados não tem com que ser comparada e conta como zero.</p>
     <p><b>Saldo.</b> O número estimado de pessoas dentro do edifício: cada entrada somada e cada saída subtraída
       desde a última reposição. Assume-se que o edifício está vazio às
-      <span id="resetNote">04:00</span> de cada dia, pelo que o saldo volta a zero nessa altura e a linha é interrompida.
+      <span id="resetNote">04:00</span> de cada dia, pelo que o saldo volta a zero nessa altura e a linha é interrompida. Um administrador também pode repô-lo a zero a qualquer momento, depois de confirmar que o edifício está vazio.
       Antes da primeira reposição nos dados (<span id="openingNote">no primeiro dia</span>) o saldo parte da
       primeira leitura. Os erros de contagem não são corrigidos ao longo do dia, por isso a estimativa pode
       desviar-se e até ficar abaixo de zero. Cada ponto é o saldo no fim do respetivo intervalo.</p>
@@ -138,8 +138,8 @@ function render() {
     s += `<text x="${x(t)}" y="${H - 8}" text-anchor="${i === 0 ? 'start' : i === 5 ? 'end' : 'middle'}">${fmtTime(new Date(t).toISOString(), b)}</text>`;
   }
   for (const se of SERIES) {
-    // a new local day (balance reset) starts a new segment instead of a vertical drop
-    const d = pts.map((p, i) => `${i && (se.key !== 'balance' || p.day === pts[i - 1].day) ? 'L' : 'M'}${x(p.t).toFixed(1)},${y(p[se.key]).toFixed(1)}`).join('');
+    // a balance reset (daily or manual) starts a new segment instead of a vertical drop
+    const d = pts.map((p, i) => `${i && (se.key !== 'balance' || p.epoch === pts[i - 1].epoch) ? 'L' : 'M'}${x(p.t).toFixed(1)},${y(p[se.key]).toFixed(1)}`).join('');
     s += `<path d="${d}" fill="none" stroke="var(${se.css})" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
     const last = pts[pts.length - 1];
     s += `<circle cx="${x(last.t)}" cy="${y(last[se.key])}" r="4" fill="var(${se.css})" stroke="var(--surface-1)" stroke-width="2"/>`;

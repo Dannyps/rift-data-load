@@ -315,6 +315,53 @@ if ($route === '/correcoes') {
     page('Correções', $body, $user, 'correcoes');
 }
 
+// ---------------------------------------------------------------- contadores (manual balance reset)
+
+if ($route === '/contadores') {
+    if ($isPost) {
+        if (($_POST['action'] ?? '') === 'reset') {
+            $note = trim($_POST['note'] ?? '');
+            if (mb_strlen($note) > 200) {
+                flash('error', 'A nota pode ter no máximo 200 caracteres.');
+            } elseif (rows($con, "SELECT 1 FROM balance_resets WHERE at > (now() AT TIME ZONE 'UTC') - interval '1 minute'")) {
+                flash('error', 'O saldo já foi reposto há menos de um minuto.');
+            } else {
+                $r = pg_fetch_assoc(pg_query_params($con, "INSERT INTO balance_resets (at, created_by, note) VALUES ((now() AT TIME ZONE 'UTC'), $1, $2) RETURNING id, at", [$user['username'], $note !== '' ? $note : null]));
+                audit($con, $user['username'], 'saldo.repor', 'reposição #' . $r['id'] . ($note !== '' ? " ($note)" : ''));
+                flash('ok', 'Saldo reposto a zero. As leituras do contador a partir de agora contam a partir de zero (o contador envia os dados com cerca de 4 minutos de atraso).');
+            }
+        } elseif (($_POST['action'] ?? '') === 'undo') {
+            $r = pg_query_params($con, 'DELETE FROM balance_resets WHERE id = $1 RETURNING at', [(int)($_POST['id'] ?? 0)]);
+            if ($old = pg_fetch_assoc($r)) {
+                audit($con, $user['username'], 'saldo.anular-reposicao', 'reposição de ' . fmt_local($old['at']));
+                flash('ok', 'Reposição anulada: o saldo volta a somar desde a reposição anterior.');
+            }
+        }
+        back();
+    }
+
+    $last = rows($con, "SELECT balance, \"timestamp\", epoch FROM balance_entries($1, $2, $3, $4) ORDER BY \"timestamp\" DESC, logentryid DESC LIMIT 1",
+        [day_start_utc(new DateTimeImmutable('now', utc())), OPENING_BALANCE, RESET_HOUR, LOCAL_TZ])[0] ?? null;
+    $body = '<p class="hint">O saldo de pessoas dentro do edifício repõe-se sozinho a zero todos os dias às ' . str_pad((string)RESET_HOUR, 2, '0', STR_PAD_LEFT)
+        . ':00. Se tiver a certeza de que não está ninguém no edifício, pode repô-lo agora: a partir deste momento o saldo conta de zero, tal como na reposição das ' . str_pad((string)RESET_HOUR, 2, '0', STR_PAD_LEFT)
+        . ':00. As contagens das reuniões já terminadas não mudam, e o máximo de uma reunião a decorrer mantém o que já atingiu. Isto não altera o contador do dispositivo.</p>'
+        . '<div class="card"><p>Saldo atual estimado: <strong>' . ($last ? h($last['balance']) : '–') . '</strong>'
+        . ($last ? ' <span class="hint">(última leitura às ' . h(fmt_local($last['timestamp'], 'H:i')) . ')</span>' : '') . '</p>'
+        . '<form method="post" data-confirm="Confirma que não está ninguém no edifício? O saldo vai voltar a zero agora.">' . csrf_field() . '<input type="hidden" name="action" value="reset">'
+        . '<div class="row"><div><label for="note">Nota (opcional)</label><input type="text" id="note" name="note" maxlength="200" placeholder="Ex.: edifício vazio entre reuniões"></div>'
+        . '<div><button class="danger">Repor saldo a zero agora</button></div></div></form></div>'
+        . '<h3>Reposições manuais</h3><div class="tablewrap"><table class="admin"><thead><tr><th>Quando</th><th>Quem</th><th>Nota</th><th></th></tr></thead><tbody>';
+    $resets = rows($con, 'SELECT * FROM balance_resets ORDER BY at DESC LIMIT 30');
+    foreach ($resets as $r) {
+        $body .= '<tr><td>' . h(fmt_local($r['at'], 'd/m/Y H:i:s')) . '</td><td>' . h($r['created_by']) . '</td><td>' . h($r['note'] ?? '') . '</td>'
+            . '<td><form method="post" data-confirm="Anular esta reposição? O saldo volta a somar desde a reposição anterior.">' . csrf_field() . '<input type="hidden" name="id" value="' . h($r['id']) . '"><button name="action" value="undo">Anular</button></form></td></tr>';
+    }
+    if (!$resets) {
+        $body .= '<tr><td colspan="4" class="hint">Ainda não houve reposições manuais.</td></tr>';
+    }
+    page('Contadores', $body . '</tbody></table></div>', $user, 'contadores');
+}
+
 // ---------------------------------------------------------------- utilizadores
 
 if ($route === '/utilizadores') {

@@ -25,7 +25,7 @@ function balance_entries($con, ?DateTimeImmutable $since): array
 {
     $res = pg_query_params(
         $con,
-        'SELECT "timestamp", logentryid, day, d_in, d_out, balance FROM balance_entries($1, $2, $3, $4) ORDER BY 1, 2',
+        'SELECT "timestamp", logentryid, day, epoch, d_in, d_out, balance FROM balance_entries($1, $2, $3, $4) ORDER BY 1, 2',
         [$since ? day_start_utc($since) : null, OPENING_BALANCE, RESET_HOUR, LOCAL_TZ]
     );
     return pg_fetch_all($res) ?: [];

@@ -29,7 +29,7 @@ function ensure_schema($con)
 }
 
 // Bump together with the COMMENT on balance_entries() in seed.sql whenever the function changes.
-const SCHEMA_VERSION = 'v1';
+const SCHEMA_VERSION = 'v2';
 
 function ensure_schema_is_valid($con)
 {
@@ -39,6 +39,7 @@ function ensure_schema_is_valid($con)
         AND to_regclass('special_days') IS NOT NULL
         AND to_regclass('service_snapshots') IS NOT NULL
         AND to_regclass('event_snapshots') IS NOT NULL
+        AND to_regclass('balance_resets') IS NOT NULL
         AND to_regclass('admin_users') IS NOT NULL
         AND to_regclass('admin_audit') IS NOT NULL
         AND to_regclass('admin_login_failures') IS NOT NULL

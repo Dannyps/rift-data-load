@@ -33,7 +33,7 @@ $res = pg_query_params($con, "
     SELECT to_char(date_bin($1::interval, \"timestamp\", timestamp '2000-01-01'), 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS t,
            sum(d_in)::int AS n_in, sum(d_out)::int AS n_out,
            (array_agg(balance ORDER BY \"timestamp\" DESC, logentryid DESC))[1] AS balance,
-           (array_agg(day ORDER BY \"timestamp\" DESC, logentryid DESC))[1] AS day
+           (array_agg(epoch ORDER BY \"timestamp\" DESC, logentryid DESC))[1] AS epoch
     FROM balance_entries($2, $3, $4, $5)
     WHERE \"timestamp\" >= (now() AT TIME ZONE 'UTC') - $6::interval
     GROUP BY 1 ORDER BY 1
@@ -41,7 +41,7 @@ $res = pg_query_params($con, "
 
 $points = [];
 while ($row = pg_fetch_assoc($res)) {
-    $points[] = ['t' => $row['t'], 'in' => (int)$row['n_in'], 'out' => (int)$row['n_out'], 'balance' => (int)$row['balance'], 'day' => $row['day']];
+    $points[] = ['t' => $row['t'], 'in' => (int)$row['n_in'], 'out' => (int)$row['n_out'], 'balance' => (int)$row['balance'], 'epoch' => $row['epoch']];
 }
 
 $last = pg_fetch_assoc(pg_query($con, "SELECT to_char(max(\"timestamp\"), 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS t, max(received_at) AS r FROM records"));

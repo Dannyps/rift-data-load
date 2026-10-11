@@ -46,7 +46,7 @@ function page(string $title, string $body, ?array $user, string $active = ''): n
 
     $nav = '';
     if ($user) {
-        $items = ['reunioes' => 'Reuniões', 'dias-especiais' => 'Dias especiais', 'correcoes' => 'Correções'];
+        $items = ['reunioes' => 'Reuniões', 'dias-especiais' => 'Dias especiais', 'correcoes' => 'Correções', 'contadores' => 'Contadores'];
         if ($user['can_manage_users']) {
             $items['utilizadores'] = 'Utilizadores';
         }

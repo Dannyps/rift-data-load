@@ -14,14 +14,37 @@ ALTER TABLE records ADD COLUMN IF NOT EXISTS received_at timestamptz NOT NULL DE
 
 CREATE INDEX IF NOT EXISTS records_timestamp_idx ON records ("timestamp");
 
+-- Manual balance resets: an admin confirms the building is empty and the balance restarts at zero
+-- from that moment, exactly like the daily reset_hour one. `at` is naive UTC and is compared with
+-- the readings' own (event) timestamps.
+CREATE TABLE IF NOT EXISTS balance_resets (
+    id serial PRIMARY KEY,
+    at timestamp NOT NULL,
+    created_by text NOT NULL,
+    note text,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- The moment the balance last restarted as of a reading at `ts`: the later of the start of its
+-- local day (reset_hour) and the latest manual reset. Naive UTC.
+CREATE OR REPLACE FUNCTION balance_epoch(ts timestamp, reset_hour int, tz text)
+RETURNS timestamp LANGUAGE sql STABLE AS $$
+    SELECT greatest(
+        (((((ts AT TIME ZONE 'UTC') AT TIME ZONE tz) - make_interval(hours => reset_hour))::date + make_interval(hours => reset_hour))
+            AT TIME ZONE tz) AT TIME ZONE 'UTC',
+        coalesce((SELECT max(at) FROM balance_resets WHERE at <= ts), '-infinity'::timestamp))
+$$;
+
 -- Running balance of people inside. The device counters are cumulative, so a reading's change is
 -- the difference to the previous reading of the same register (a drop means the counter was
--- reset). The balance restarts at zero each local day at reset_hour; on the very first day in the
--- data it starts at `opening`. from_ts, when given, must be the start of a local day: only that
--- day onwards is returned (one earlier day of readings is still read for the first difference).
--- All timestamps are naive UTC, like the table.
-CREATE OR REPLACE FUNCTION balance_entries(from_ts timestamp, opening int, reset_hour int, tz text)
-RETURNS TABLE ("timestamp" timestamp, logentryid int, day date, d_in int, d_out int, balance int)
+-- reset). The balance restarts at zero at every epoch (see balance_epoch: each local day at
+-- reset_hour, and any manual reset); in the very first epoch of the data it starts at `opening`.
+-- `day` is the local day (shifted by reset_hour) a reading belongs to. from_ts, when given, must
+-- be the start of a local day: only that day onwards is returned (one earlier day of readings is
+-- still read for the first difference). All timestamps are naive UTC, like the table.
+DROP FUNCTION IF EXISTS balance_entries(timestamp, int, int, text);
+CREATE FUNCTION balance_entries(from_ts timestamp, opening int, reset_hour int, tz text)
+RETURNS TABLE ("timestamp" timestamp, logentryid int, day date, epoch timestamp, d_in int, d_out int, balance int)
 LANGUAGE sql STABLE AS $$
     WITH deltas AS (
         SELECT deviceid, logentryid, registerid, "timestamp",
@@ -35,19 +58,20 @@ LANGUAGE sql STABLE AS $$
     ), entries AS (
         SELECT "timestamp", logentryid,
                ((("timestamp" AT TIME ZONE 'UTC') AT TIME ZONE tz) - make_interval(hours => reset_hour))::date AS day,
+               balance_epoch("timestamp", reset_hour, tz) AS epoch,
                sum(delta) FILTER (WHERE registerid = 0) AS d_in,
                sum(delta) FILTER (WHERE registerid = 1) AS d_out
         FROM deltas GROUP BY deviceid, "timestamp", logentryid
-    ), first_day AS (
-        SELECT ((((min("timestamp") AT TIME ZONE 'UTC') AT TIME ZONE tz)) - make_interval(hours => reset_hour))::date AS d FROM records
+    ), first_epoch AS (
+        SELECT balance_epoch(min("timestamp"), reset_hour, tz) AS e FROM records
     )
-    SELECT e."timestamp", e.logentryid, e.day, coalesce(e.d_in, 0)::int, coalesce(e.d_out, 0)::int,
-           ((CASE WHEN e.day = (SELECT d FROM first_day) THEN opening ELSE 0 END)
-            + sum(coalesce(e.d_in, 0) - coalesce(e.d_out, 0)) OVER (PARTITION BY e.day ORDER BY e."timestamp", e.logentryid))::int
+    SELECT e."timestamp", e.logentryid, e.day, e.epoch, coalesce(e.d_in, 0)::int, coalesce(e.d_out, 0)::int,
+           ((CASE WHEN e.epoch = (SELECT fe.e FROM first_epoch fe) THEN opening ELSE 0 END)
+            + sum(coalesce(e.d_in, 0) - coalesce(e.d_out, 0)) OVER (PARTITION BY e.epoch ORDER BY e."timestamp", e.logentryid))::int
     FROM entries e
     WHERE from_ts IS NULL OR e."timestamp" >= from_ts
 $$;
-COMMENT ON FUNCTION balance_entries(timestamp, int, int, text) IS 'v1';
+COMMENT ON FUNCTION balance_entries(timestamp, int, int, text) IS 'v2';
 
 -- Recurring weekly services (weekday 0 = Sunday). Window = start_time .. start_time + duration.
 CREATE TABLE IF NOT EXISTS services (
