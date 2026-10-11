@@ -5,4 +5,4 @@ After=docker.service
 
 [Service]
 Type=oneshot
-ExecStart=/media/ssd/www/rift-postgres/backup/pg-backup.sh
+ExecStart=@DB_DIR@/backup/pg-backup.sh

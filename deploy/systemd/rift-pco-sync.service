@@ -6,6 +6,6 @@ After=network-online.target docker.service
 Type=oneshot
 User=www-data
 Group=www-data
-ExecStart=/usr/bin/php /media/ssd/www/rift-data-load/pco_sync.php
+ExecStart=/usr/bin/php @APP_DIR@/pco_sync.php
 TimeoutStartSec=300
 Nice=10

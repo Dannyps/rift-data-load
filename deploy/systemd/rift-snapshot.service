@@ -6,4 +6,4 @@ After=docker.service
 Type=oneshot
 User=www-data
 Group=www-data
-ExecStart=/usr/bin/php /media/ssd/www/rift-data-load/snapshot.php
+ExecStart=/usr/bin/php @APP_DIR@/snapshot.php

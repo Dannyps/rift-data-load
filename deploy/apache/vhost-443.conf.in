@@ -1,7 +1,7 @@
 <IfModule mod_ssl.c>
 <VirtualHost *:443>
-    ServerName rift.dannyps.net
-    DocumentRoot /media/ssd/www/rift-data-load
+    ServerName @DOMAIN@
+    DocumentRoot @APP_DIR@
 
     # The document root is a git repository: never serve its metadata or internals.
     RedirectMatch 404 "/\.(git|github)(/|$)"
@@ -17,7 +17,7 @@
     RewriteRule ^/api/services$ /services.php [L]
     RewriteRule ^/admin(/.*)?$ /admin.php [L,QSA]
 
-    <Directory /media/ssd/www/rift-data-load>
+    <Directory @APP_DIR@>
         Options -Indexes
         AllowOverride None
 
@@ -27,8 +27,8 @@
     ErrorLog ${APACHE_LOG_DIR}/rift_error.log
     CustomLog ${APACHE_LOG_DIR}/rift_access.log combined
 
-SSLCertificateFile /etc/letsencrypt/live/rift.dannyps.net/fullchain.pem
-SSLCertificateKeyFile /etc/letsencrypt/live/rift.dannyps.net/privkey.pem
+SSLCertificateFile /etc/letsencrypt/live/@DOMAIN@/fullchain.pem
+SSLCertificateKeyFile /etc/letsencrypt/live/@DOMAIN@/privkey.pem
 Include /etc/letsencrypt/options-ssl-apache.conf
 </VirtualHost>
 </IfModule>

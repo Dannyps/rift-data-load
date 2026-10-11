@@ -1,12 +1,12 @@
 <VirtualHost *:80>
-    ServerName rift.dannyps.net
-    DocumentRoot /media/ssd/www/rift-data-load
+    ServerName @DOMAIN@
+    DocumentRoot @APP_DIR@
 
     # The document root is a git repository: never serve its metadata or internals.
     RedirectMatch 404 "/\.(git|github)(/|$)"
     RedirectMatch 404 "^/(sql|src|README\.md|load_files\.php|snapshot\.php|special_day\.php|admin_user\.php|pco_sync\.php|tests|[^/]*\.(priv|ini))"
 
-    <Directory /media/ssd/www/rift-data-load>
+    <Directory @APP_DIR@>
         Options -Indexes
         AllowOverride None
 
@@ -16,6 +16,6 @@
     ErrorLog ${APACHE_LOG_DIR}/rift_error.log
     CustomLog ${APACHE_LOG_DIR}/rift_access.log combined
 RewriteEngine on
-RewriteCond %{SERVER_NAME} =rift.dannyps.net
+RewriteCond %{SERVER_NAME} =@DOMAIN@
 RewriteRule ^ https://%{SERVER_NAME}%{REQUEST_URI} [END,NE,R=permanent]
 </VirtualHost>

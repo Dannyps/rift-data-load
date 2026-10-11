@@ -96,22 +96,49 @@ It follows the folders Porto and Young Adults & Youth (`src/pco.php`: `PCO_ROOT_
 - The schema is created and migrated automatically (`sql/utils.php`, `SCHEMA_VERSION`; bump it together
   with the comment on `balance_entries()` when that function changes).
 
-## Operations
+## Install
 
-Reference copies of everything installed outside this repo are in `deploy/`.
+`deploy/install.sh` sets up everything this project needs outside the repository on a Debian/Ubuntu host (Docker
+with the compose plugin must already be installed): packages and Apache modules, the Postgres container, the secrets
+files in `/etc/rift-data-load`, the database schema, the systemd timers, the monitor, logrotate and the Apache vhosts
+with HTTPS. It is idempotent, never overwrites secrets or data, keeps a `.bak.<time>` copy of any file it replaces,
+and **only prints what it would do unless you add `--apply`**.
 
-- Database: `deploy/postgres-compose.yml` (container `rift-postgres-db-1`, 127.0.0.1:5433, data and `.env`
-  in `/media/ssd/www/rift-postgres/`).
-- `rift-postgres-backup.timer` (03:45): `pg_dump` into `rift-postgres/backups/`, verified, newest 14 plus
-  Sundays for 8 weeks. Restore: `pg_restore -U rift -d <db> --no-owner < backups/rift-DATE.dump`.
-  Same disk as the database: no off-host copy yet.
-- `rift-pco-sync.timer` (30 min): Planning Center sync (above).
-- `rift-snapshot.timer` (5 min): `snapshot.php` keeps meeting snapshots fresh and frozen.
-- `rift-monitor.timer` (1 min): emails root@altair.dannyps.net (Roundcube folder `altair.dannyps.net`) when
-  no data has arrived for 10 minutes, or the Planning Center sync has failed for 6 hours; repeats every 6 h while it
-  persists and when it recovers.
+```bash
+git clone git@github.com:Dannyps/rift-data-load.git /srv/rift/rift-data-load && cd /srv/rift/rift-data-load
+sudo deploy/install.sh                                   # dry run
+sudo deploy/install.sh --apply --domain rift.example.org --certbot you@example.org \
+     [--auth-token-file TOKEN] [--pco-ini pco.ini] [--db-dir DIR] [--app-dir DIR]
+```
+
+Run it on the server where the site already works and it reports `0 change(s)`: the templates in `deploy/` render
+to exactly what is installed. Then, by hand: point the DNS name at the host, create the first admin
+(`sudo -u www-data php admin_user.php create NAME --manage`) and set the URL and the token
+(`sudo cat /etc/rift-data-load/auth-token`) in the people counter. Without `--pco-ini` the Planning Center timer is not
+enabled. Files in `deploy/` are templates (`@APP_DIR@`, `@DB_DIR@`, `@DOMAIN@`); edit them, not the installed copies,
+and re-run the script. Never `chown` the database's `pgdata/` directory: the container owns it (uid 70).
+
+## Scheduled jobs
+
+systemd timers (no cron). Each has a matching service, so a failure shows in `systemctl --failed` and the journal;
+they all use `Persistent=true` (a run missed while the server was down happens after boot).
+
+| Timer | When | What it does |
+|---|---|---|
+| `rift-monitor` | every 60 s, root | Emails `root@altair.dannyps.net` (Roundcube folder `altair.dannyps.net`) when no reading was received for 10 min (with the last rejected requests from `ingest.log`, or the database error), or when the Planning Center sync has not succeeded for 6 h (with its last error); repeats every 6 h and sends a "recovered" mail. State in `/var/lib/rift-monitor/`. Read-only. |
+| `rift-snapshot` | every 5 min, www-data | `snapshot.php`: for the current and previous week, saves each started meeting's peak balance, marks it partial if the counter began late, and freezes it 10 min after the window ends; saves the event (balance over 5) of days without a meeting and freezes it after the day. Never touches frozen rows or manual corrections. Loading `/reunioes` does the same on demand. |
+| `rift-pco-sync` | every 30 min (+≤60 s), www-data | `pco_sync.php` under a lock: reads the Porto and Young Adults & Youth folders (no Kids), the plans and their service times, the people of plans from yesterday to +21 days, saves them, deletes vanished future plans, and creates/updates/removes the Planning Center special days (manual ones win; past rows and a meeting already started are never removed). About 100 API calls, ~1 min; on a Planning Center error it records the error and changes nothing. |
+| `rift-postgres-backup` | 03:45 (+≤10 min), root | `pg_dump -Fc` of the `rift` database to `rift-postgres/backups/rift-YYYYMMDD-HHMM.dump` (mode 600), kept only if `pg_restore --list` can read it; keeps the newest 14 plus every Sunday one for 8 weeks. Same disk as the database: no off-host copy. A failure fails the unit but sends no email. |
+
+Not timers: the 04:00 balance reset is not a job: `balance_epoch()` (SQL) works out the reset from each reading's time
+(Europe/Lisbon, daylight saving included). The system `certbot.timer` renews the certificate and `logrotate.timer` keeps
+52 weekly `records` and `ingest.log` files.
+
+Other operations:
+- Database: container `rift-postgres-db-1`, 127.0.0.1:5433, data in `rift-postgres/pgdata`. Restore a dump:
+  `pg_restore -U rift -d <db> --no-owner < backups/rift-DATE.dump`.
 - `php load_files.php [file...]` replays an archive (also `.gz`) into the database; safe to repeat.
-- logrotate keeps 52 weekly `records` and `ingest.log` files (`deploy/logrotate`).
+- `deploy/` holds the install script and the templates of everything installed outside the repo.
 
 ## Notes
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Email alerts for the RIFT people counter (rift.dannyps.net), same channel as atento-monitor.
+"""Email alerts for the RIFT people counter (@DOMAIN@), same channel as atento-monitor.
 
 A systemd timer runs this every 60 s. The counter posts once a minute, so "no row received for
 GRACE seconds" (default 10 min) means the device, its network, the token or the database is broken:
@@ -26,7 +26,7 @@ PCO_GRACE = int(os.environ.get("RIFT_PCO_GRACE", 6 * 3600))
 REMIND = int(os.environ.get("RIFT_REMIND", 6 * 3600))
 PREFIX = os.environ.get("RIFT_SUBJECT_PREFIX", "")
 SENDER = "RIFT monitor <root@altair.dannyps.net>"
-COMPOSE_DIR = "/media/ssd/www/rift-postgres"
+COMPOSE_DIR = "@DB_DIR@"
 INGEST_LOG = "/var/lib/rift-data-load/ingest.log"
 
 
@@ -115,7 +115,7 @@ def main():
     else:
         detail = f"No data received for {int(age // 60)} minutes (the counter normally posts every minute)."
         hint = now - age
-    detail += recent_rejections() + "\n\nCheck the counter and its network, then https://rift.dannyps.net/ and /var/lib/rift-data-load/ingest.log on altair."
+    detail += recent_rejections() + "\n\nCheck the counter and its network, then https://@DOMAIN@/ and /var/lib/rift-data-load/ingest.log on altair."
     run_check("state", healthy, hint, detail, "RIFT counter: no data", "RIFT counter: still no data", "RIFT counter: recovered",
               "Data is arriving again (it had stopped for about {mins} minutes).")
 
@@ -130,7 +130,7 @@ def main():
     detail = ("The Planning Center sync has not succeeded for " + (f"{int(pco_age // 3600)} hours" if pco_age is not None else "a long time")
               + ".\nLast error: " + (pco_err or "none recorded")
               + "\n\nSpecial days and the people on the meeting cards are not being refreshed (what is saved stays in use)."
-              + "\nTry: php /media/ssd/www/rift-data-load/pco_sync.php   (the token is in /etc/rift-data-load/pco.ini)")
+              + "\nTry: php @APP_DIR@/pco_sync.php   (the token is in /etc/rift-data-load/pco.ini)")
     run_check("pco", pco_healthy, (now - pco_age) if pco_age is not None else None, detail,
               "RIFT Planning Center: sync failing", "RIFT Planning Center: sync still failing", "RIFT Planning Center: recovered",
               "The Planning Center sync works again (it had been failing for about {mins} minutes).")
