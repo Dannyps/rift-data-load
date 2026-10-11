@@ -38,7 +38,8 @@ Clean URLs are Apache rewrite rules in the vhost (`deploy/apache/`). `sql/`, `sr
 Every card on `/reunioes` has an "i" button that opens a dialog (all in `reunioes.html`, nothing is saved or sent to
 the server). For a meeting: six counts (Voluntários, Visitantes, Adultos fora das portas, Crianças no Kids,
 Crianças/bebés no auditório, Decisões) and the four names (MC, Oferta, Líder Louvor, Pregação, pre-filled from the
-card), all required; "Gerar texto" builds a WhatsApp-style (`*bold*`) report starting with a title line and "Copiar"
+card), all required; "Gerar texto" builds a WhatsApp-style (`*bold*`) report starting with a title line and a
+`*Assistência*` line, and "Copiar"
 puts it on the clipboard. For an event card the text is just the peak count. `buildReport()` is the text builder.
 
 ## Admin area (`/admin`)

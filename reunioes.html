@@ -2,7 +2,7 @@
 <html lang="pt-PT">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
 <title>Reuniões · Contador de pessoas RIFT</title>
 <link rel="stylesheet" href="assets/common.css">
 <style>
@@ -35,7 +35,12 @@
   .info-btn { position: absolute; top: 6px; right: 6px; width: 36px; height: 36px; padding: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
     font: italic 700 17px/1 Georgia, 'Times New Roman', serif; color: var(--text-secondary); background: var(--surface-1); }
   .info-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
-  dialog#report { width: min(600px, calc(100vw - 24px)); max-height: calc(100vh - 24px); padding: 0; border: 1px solid var(--grid); border-radius: 12px; background: var(--surface-1); color: var(--text-primary); overflow: hidden; }
+  dialog#report { width: min(600px, calc(100vw - 24px)); max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); padding: 0; border: 1px solid var(--grid); border-radius: 12px; background: var(--surface-1); color: var(--text-primary); overflow: hidden; }
+  /* Phones: pin the dialog to the VISIBLE viewport (JS keeps --vvh/--vvtop in sync with visualViewport), so the
+     on-screen keyboard never covers the focused field or the buttons; the body scrolls inside. */
+  @media (max-width: 720px) {
+    dialog#report { position: fixed; inset: auto; left: 8px; right: 8px; width: auto; margin: 0; top: calc(var(--vvtop, 0px) + 8px); max-height: calc(var(--vvh, 100dvh) - 16px); }
+  }
   dialog#report::backdrop { background: rgba(0, 0, 0, .5); }
   dialog#report[open] { display: flex; flex-direction: column; }
   .dlg-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 16px 8px 20px; }
@@ -213,7 +218,7 @@ function buildReport(card, values) {
     return [`*Evento · ${date} · ${card.start}–${card.end}*`, `*Pessoas (pico):* ${card.count}`].join('\n');
   }
   const title = `${card.name}${card.name.includes(card.time) ? '' : ' · ' + card.time} · ${date}`;
-  const lines = [`*${title}*`];
+  const lines = [`*${title}*`, '*Assistência*'];
   for (const [id, label] of REPORT_NUMBERS) lines.push(`*${label}:* ${parseInt(values[id], 10)}`);
   for (const [id, label] of REPORT_NAMES) lines.push(`*${label}:* ${values[id].replace(/\s+/g, ' ').trim()}`);
   return lines.join('\n');
@@ -263,6 +268,7 @@ function openReport(key) {
       fieldHtml(id, label, (card.people && card.people[role] && card.people[role].value) || '', 'maxlength="100"')).join('');
   }
   dlg.showModal();
+  fitViewport();
   if (card.kind === 'e') fitText();
   const first = dlg.querySelector('#reportForm:not([hidden]) input') || $('copyBtn');
   first.focus();
@@ -275,9 +281,24 @@ function fitText() {
   ta.style.height = (ta.scrollHeight + 4) + 'px';
 }
 
+// Keep the dialog inside the visible area when the on-screen keyboard is up (visualViewport shrinks/scrolls).
+const vv = window.visualViewport;
+function fitViewport() {
+  if (!vv || !dlg.open) return;
+  dlg.style.setProperty('--vvh', vv.height + 'px');
+  dlg.style.setProperty('--vvtop', vv.offsetTop + 'px');
+}
+if (vv) { vv.addEventListener('resize', fitViewport); vv.addEventListener('scroll', fitViewport); }
+// bring the field being edited into view inside the scrolling dialog body (after the keyboard animation)
+dlg.addEventListener('focusin', e => {
+  if (e.target.matches('input, textarea')) setTimeout(() => e.target.scrollIntoView({ block: 'center' }), 300);
+});
+
 function closeReport() { dlg.close(); }
 
 dlg.addEventListener('close', () => {
+  dlg.style.removeProperty('--vvh');
+  dlg.style.removeProperty('--vvtop');
   // the cards may have been re-rendered while the dialog was open: refocus the button by key
   if (!current) return;
   const btn = [...document.querySelectorAll('.info-btn')].find(b => b.dataset.report === current.key);
