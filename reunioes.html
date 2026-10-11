@@ -35,6 +35,8 @@
   .info-btn { position: absolute; top: 6px; right: 6px; width: 36px; height: 36px; padding: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
     font: italic 700 17px/1 Georgia, 'Times New Roman', serif; color: var(--text-secondary); background: var(--surface-1); }
   .info-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
+  .info-btn:disabled { opacity: .35; cursor: not-allowed; }
+  .info-btn:disabled:hover { color: var(--text-secondary); border-color: var(--grid); }
   dialog#report { width: min(600px, calc(100vw - 24px)); max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); padding: 0; border: 1px solid var(--grid); border-radius: 12px; background: var(--surface-1); color: var(--text-primary); overflow: hidden; }
   /* Phones: pin the dialog to the VISIBLE viewport (JS keeps --vvh/--vvtop in sync with visualViewport), so the
      on-screen keyboard never covers the focused field or the buttons; the body scrolls inside. */
@@ -150,8 +152,11 @@ function peopleBlock(s) {
   return rows ? `<dl class="people">${rows}</dl>` : '';
 }
 
-function infoButton(key) {
-  return `<button type="button" class="info-btn" data-report="${esc(key)}" aria-label="Relatório da reunião (texto para copiar)" aria-haspopup="dialog" title="Relatório">i</button>`;
+// A meeting that has not started has nothing to report yet: the button is shown but disabled (not clickable or focusable).
+function infoButton(key, disabled) {
+  return disabled
+    ? `<button type="button" class="info-btn" data-report="${esc(key)}" disabled aria-label="Relatório da reunião: disponível quando a reunião começar" title="Disponível quando a reunião começar">i</button>`
+    : `<button type="button" class="info-btn" data-report="${esc(key)}" aria-label="Relatório da reunião (texto para copiar)" aria-haspopup="dialog" title="Relatório">i</button>`;
 }
 
 function serviceCard(s, date) {
@@ -166,7 +171,7 @@ function serviceCard(s, date) {
       : `<div class="state">Terminou às ${hhmm(s.end)}</div>`;
   }
   const partial = s.partial && s.status !== 'unknown' ? '<div class="note">Dados parciais: o contador começou depois do início da reunião.</div>' : '';
-  return `<div class="card">${infoButton('s|' + date + '|' + s.time)}<div class="title"><span>${esc(s.name)}${s.special ? ' <span class="badge">dia especial</span>' : ''}</span><span class="time">${s.time}</span></div>${count}${state}${partial}${peopleBlock(s)}</div>`;
+  return `<div class="card">${infoButton('s|' + date + '|' + s.time, s.status === 'unknown')}<div class="title"><span>${esc(s.name)}${s.special ? ' <span class="badge">dia especial</span>' : ''}</span><span class="time">${s.time}</span></div>${count}${state}${partial}${peopleBlock(s)}</div>`;
 }
 
 function eventCard(e, date) {
@@ -239,6 +244,7 @@ function cardFor(key) {
     return e && { kind: 'e', date, name: 'Evento', time: '', start: hhmm(e.start), end: hhmm(e.end), count: e.count, people: null };
   }
   const s = day.services.find(x => x.time === time);
+  if (s && s.status === 'unknown') return null;   // not started: no report
   return s && { kind: 's', date, name: s.name, time: s.time, people: s.people, count: s.count };
 }
 
