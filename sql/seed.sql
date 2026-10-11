@@ -41,9 +41,11 @@ $$;
 -- reset_hour, and any manual reset); in the very first epoch of the data it starts at `opening`.
 -- `day` is the local day (shifted by reset_hour) a reading belongs to. from_ts, when given, must
 -- be the start of a local day: only that day onwards is returned (one earlier day of readings is
--- still read for the first difference). All timestamps are naive UTC, like the table.
+-- still read for the first difference); to_ts, when given, is an upper bound on the readings. All timestamps are
+-- naive UTC, like the table.
 DROP FUNCTION IF EXISTS balance_entries(timestamp, int, int, text);
-CREATE FUNCTION balance_entries(from_ts timestamp, opening int, reset_hour int, tz text)
+DROP FUNCTION IF EXISTS balance_entries(timestamp, int, int, text, timestamp);
+CREATE FUNCTION balance_entries(from_ts timestamp, opening int, reset_hour int, tz text, to_ts timestamp DEFAULT NULL)
 RETURNS TABLE ("timestamp" timestamp, logentryid int, day date, epoch timestamp, d_in int, d_out int, balance int)
 LANGUAGE sql STABLE AS $$
     WITH deltas AS (
@@ -54,7 +56,7 @@ LANGUAGE sql STABLE AS $$
         FROM (SELECT deviceid, logentryid, registerid, "timestamp", value,
                      lag(value) OVER (PARTITION BY deviceid, registerid ORDER BY "timestamp", logentryid) AS prev
               FROM records
-              WHERE from_ts IS NULL OR "timestamp" >= from_ts - interval '1 day') r
+              WHERE (from_ts IS NULL OR "timestamp" >= from_ts - interval '1 day') AND (to_ts IS NULL OR "timestamp" <= to_ts)) r
     ), entries AS (
         SELECT "timestamp", logentryid,
                ((("timestamp" AT TIME ZONE 'UTC') AT TIME ZONE tz) - make_interval(hours => reset_hour))::date AS day,
@@ -71,7 +73,7 @@ LANGUAGE sql STABLE AS $$
     FROM entries e
     WHERE from_ts IS NULL OR e."timestamp" >= from_ts
 $$;
-COMMENT ON FUNCTION balance_entries(timestamp, int, int, text) IS 'v2';
+COMMENT ON FUNCTION balance_entries(timestamp, int, int, text, timestamp) IS 'v3';
 
 -- Recurring weekly services (weekday 0 = Sunday). Window = start_time .. start_time + duration.
 CREATE TABLE IF NOT EXISTS services (

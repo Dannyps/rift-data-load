@@ -117,6 +117,7 @@
       <fieldset><legend>Quem</legend><div class="grid2" id="nameFields"></div></fieldset>
       <div class="form-error" id="formError" role="alert" hidden></div>
       <div class="dlg-actions"><button type="submit" class="primary">Gerar texto</button></div>
+      <div class="sub" id="saveNote" role="status" aria-live="polite"></div>
     </form>
     <div id="reportOut" hidden>
       <label for="reportText" class="sub">Texto pronto a copiar</label>
@@ -205,6 +206,8 @@ function render() {
 // ---------------------------------------------------------------- meeting report (text to copy)
 
 // [field id, label (dialog and text), hint shown in the dialog only]
+// the server calls the 'adultos' field adultos_fora
+const SAVED_KEY = { adultos: 'adultos_fora' };
 const REPORT_NUMBERS = [
   ['assistencia', 'Assistência', 'Pré-preenchido com a contagem do contador; corrija se for preciso.'],
   ['voluntarios', 'Voluntários'],
@@ -236,6 +239,11 @@ function buildReport(card, values) {
   return lines.join('\n');
 }
 
+// Is a logged-in admin user looking at this page? Then the report is pre-filled from, and saved to, the statistics.
+const sessionReady = fetch('/admin/api/me', { credentials: 'same-origin', cache: 'no-store' })
+  .then(r => r.ok ? r.json() : { loggedIn: false }).catch(() => ({ loggedIn: false }));
+let session = { loggedIn: false };
+
 const dlg = $('report');
 let current = null;      // {key, card}
 
@@ -257,9 +265,18 @@ function fieldHtml(id, label, value, extra, hint) {
     `<input id="f_${id}" name="${id}" type="text" ${extra} value="${esc(value)}" aria-describedby="${hint ? 'h_' + id + ' ' : ''}e_${id}" autocomplete="off"><div class="err" id="e_${id}" hidden></div></div>`;
 }
 
-function openReport(key) {
+async function openReport(key) {
   const card = cardFor(key);
   if (!card) return;
+  session = await sessionReady;
+  let saved = null, suggest = null;
+  if (session.loggedIn && card.kind === 's') {
+    try {
+      const r = await fetch(`/admin/api/report?day=${card.date}&time=${card.time}`, { credentials: 'same-origin', cache: 'no-store' });
+      if (r.ok) ({ report: saved, suggest } = await r.json());
+      else if (r.status === 401) session = { loggedIn: false };
+    } catch (e) { /* offline: behave as anonymous */ }
+  }
   current = { key, card };
   const dateText = fullDateFmt.format(dateOf(card.date));
   $('reportTitle').textContent = card.kind === 'e' ? 'Evento' : card.name;
@@ -276,10 +293,21 @@ function openReport(key) {
     $('reportOut').hidden = false;
   } else {
     $('reportForm').hidden = false;
+    const fromCard = { assistencia: card.count !== null && card.count !== undefined ? card.count : '' };
+    const hints = {};
+    if (suggest && suggest.voluntarios !== null && suggest.voluntarios !== undefined) {
+      fromCard.voluntarios = suggest.voluntarios;
+      hints.voluntarios = `Sugestão: ${suggest.voluntarios} pessoas no devocional${suggest.devotionalAt ? ' das ' + hhmm(suggest.devotionalAt) : ''}. Corrija se for preciso.`;
+    }
+    const field = (id) => saved && saved[SAVED_KEY[id] || id] !== undefined ? saved[SAVED_KEY[id] || id] : (fromCard[id] ?? '');
     $('numFields').innerHTML = REPORT_NUMBERS.map(([id, label, hint]) =>
-      fieldHtml(id, label, id === 'assistencia' && card.count !== null && card.count !== undefined ? card.count : '', 'inputmode="numeric" pattern="[0-9]*"', hint)).join('');
+      fieldHtml(id, label, field(id), 'inputmode="numeric" pattern="[0-9]*"', hints[id] || hint)).join('');
     $('nameFields').innerHTML = REPORT_NAMES.map(([id, label, role]) =>
-      fieldHtml(id, label, (card.people && card.people[role] && card.people[role].value) || '', 'maxlength="100"')).join('');
+      fieldHtml(id, label, saved ? saved[id] : ((card.people && card.people[role] && card.people[role].value) || ''), 'maxlength="100"')).join('');
+    $('saveNote').textContent = '';
+    $('reportIntro').textContent = session.loggedIn
+      ? `Sessão iniciada como ${session.user}: ao gerar o texto, o relatório fica guardado nas estatísticas${saved ? ' (já havia um guardado: foi carregado)' : ''}.`
+      : 'Preencha todos os campos e carregue em «Gerar texto». Sem sessão iniciada nada fica guardado: ao fechar, os valores perdem-se.';
   }
   dlg.showModal();
   fitViewport();
@@ -371,11 +399,27 @@ $('reportForm').addEventListener('submit', e => {
   err.hidden = true;
   $('reportText').value = buildReport(current.card, values);
   $('reportOut').hidden = false;
+  if (session.loggedIn) saveReport(values);
   $('copyBtn').textContent = 'Copiar';
   $('copyNote').textContent = '';
   fitText();
   $('reportOut').scrollIntoView({ block: 'nearest' });
 });
+
+async function saveReport(values) {
+  const note = $('saveNote');
+  const body = new URLSearchParams({ csrf: session.csrf, day: current.card.date, time: current.card.time });
+  for (const [id] of REPORT_NUMBERS) body.set(SAVED_KEY[id] || id, values[id]);
+  for (const [id] of REPORT_NAMES) body.set(id, values[id]);
+  note.textContent = 'A guardar…';
+  try {
+    const r = await fetch('/admin/api/report', { method: 'POST', body, credentials: 'same-origin' });
+    const j = await r.json().catch(() => ({}));
+    note.textContent = r.ok ? 'Relatório guardado nas estatísticas ✓' : (r.status === 401 ? 'A sessão expirou: o texto foi gerado mas não ficou guardado. Inicie sessão outra vez.' : `Não foi possível guardar: ${j.error || r.status}`);
+  } catch (e) {
+    note.textContent = 'Não foi possível guardar (sem ligação). O texto foi gerado na mesma.';
+  }
+}
 
 $('copyBtn').addEventListener('click', async () => {
   const text = $('reportText').value;

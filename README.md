@@ -36,11 +36,34 @@ Clean URLs are Apache rewrite rules in the vhost (`deploy/apache/`). `sql/`, `sr
 ## Meeting report (info button on each card)
 
 Every card on `/reunioes` has a clipboard-icon button (disabled until the meeting has started) that opens a dialog (all in `reunioes.html`, nothing is saved or sent to
-the server). For a meeting: seven counts (Assistência, Voluntários, Visitantes, Adultos fora das portas, Crianças no Kids,
+the server for anonymous visitors). For a meeting: seven counts (Assistência, Voluntários, Visitantes, Adultos fora das portas, Crianças no Kids,
 Crianças/bebés no auditório, Decisões) and the four names (MC, Oferta, Líder Louvor, Pregação, pre-filled from the
 card), all required; "Gerar texto" builds a WhatsApp-style (`*bold*`) report starting with a title line and an
 `*Assistência:* N` line (the counter's count for the meeting, pre-filled and correctable), and "Copiar"
-puts it on the clipboard. For an event card the text is just the peak count. `buildReport()` is the text builder.
+puts it on the clipboard. For an event card the text is just the peak count.
+**When a logged-in admin user generates the text, the report is also saved** (`meeting_reports`) and loaded next time; the
+"Voluntários" field is suggested from the devotional head-count. The page asks `/admin/api/me` whether you are logged in
+(the session cookie only travels to `/admin/...`). `buildReport()` is the text builder.
+
+## Statistics (`/admin/estatisticas`, login required)
+
+Week (per meeting: attendance vs the same meeting last week, late arrivals, devotional head-count, saved report numbers;
+the Sunday total; exit speed; a progression chart per meeting with last week's dashed), month (averages per meeting slot,
+previous month beside it) and year (bars Sunday after Sunday: total attendance, volunteers, visitors, kids, decisions;
+every chart has a table view). Charts are plain SVG in `assets/stats.js`; data comes from `/admin/api/stats` (`src/stats_pages.php`).
+
+| Metric | Definition (`src/stats.php`, tested in `tests/stats_test.php`) |
+|---|---|
+| Attendance | the saved report's Assistência, else a manual correction, else the counter's peak |
+| Late arrivals | share of the counter's arrivals in (start−60 min, end] that come more than the *grace* after the start; hidden when the counter began after the meeting did (partial) |
+| Devotional | highest balance within 5 min after the plan's `Devocional` time (Planning Center plan time; fallback setting 08:43 / 16:58); suggested as Voluntários |
+| Exit speed | minutes from 13:00 and 19:00 until the balance is ≤ 5 (0 if already; «não atingiu» after 3 h; «sem dados» if no readings) |
+| Sunday total | the Sunday's meetings added together (someone at two meetings counts twice) |
+
+The grace (default 10 min), the devotional fallbacks, the exit hours and the threshold are in the *Definições* box on that page
+(`settings` table). **Changing a setting never rewrites the past:** each meeting's numbers are saved with it (and frozen with it),
+including the grace they were computed with. Early departures are not implemented (they need the real end time of each meeting).
+The year chart starts on 11 Oct 2026, the first day of counter data.
 
 ## Admin area (`/admin`)
 
@@ -126,7 +149,7 @@ they all use `Persistent=true` (a run missed while the server was down happens a
 | Timer | When | What it does |
 |---|---|---|
 | `rift-monitor` | every 60 s, root | Emails `root@altair.dannyps.net` (Roundcube folder `altair.dannyps.net`) when no reading was received for 10 min (with the last rejected requests from `ingest.log`, or the database error), or when the Planning Center sync has not succeeded for 6 h (with its last error); repeats every 6 h and sends a "recovered" mail. State in `/var/lib/rift-monitor/`. Read-only. |
-| `rift-snapshot` | every 5 min, www-data | `snapshot.php`: for the current and previous week, saves each started meeting's peak balance, marks it partial if the counter began late, and freezes it 10 min after the window ends; saves the event (balance over 5) of days without a meeting and freezes it after the day. Never touches frozen rows or manual corrections. Loading `/reunioes` does the same on demand. |
+| `rift-snapshot` | every 5 min, www-data | `snapshot.php`: for the current and previous week, saves each started meeting's peak balance, arrivals/late share and devotional head-count, marks it partial if the counter began late, and freezes it 10 min after the window ends; saves the exit speeds after 13:00/19:00; saves the event (balance over 5) of days without a meeting and freezes it after the day. Never touches frozen rows or manual corrections. Loading `/reunioes` does the same on demand. |
 | `rift-pco-sync` | every 30 min (+≤60 s), www-data | `pco_sync.php` under a lock: reads the Porto and Young Adults & Youth folders (no Kids), the plans and their service times, the people of plans from yesterday to +21 days, saves them, deletes vanished future plans, and creates/updates/removes the Planning Center special days (manual ones win; past rows and a meeting already started are never removed). About 100 API calls, ~1 min; on a Planning Center error it records the error and changes nothing. |
 | `rift-postgres-backup` | 03:45 (+≤10 min), root | `pg_dump -Fc` of the `rift` database to `rift-postgres/backups/rift-YYYYMMDD-HHMM.dump` (mode 600), kept only if `pg_restore --list` can read it; keeps the newest 14 plus every Sunday one for 8 weeks. Same disk as the database: no off-host copy. A failure fails the unit but sends no email. |
 

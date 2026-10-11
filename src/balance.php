@@ -20,13 +20,14 @@ function day_start_utc(DateTimeImmutable $t): string
     return $start->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
 }
 
-/** balance_entries() rows from the start of the local day containing $since (null: all history). */
-function balance_entries($con, ?DateTimeImmutable $since): array
+/** balance_entries() rows from the start of the local day containing $since (null: all history), up to $until if given. */
+function balance_entries($con, ?DateTimeImmutable $since, ?DateTimeImmutable $until = null): array
 {
     $res = pg_query_params(
         $con,
-        'SELECT "timestamp", logentryid, day, epoch, d_in, d_out, balance FROM balance_entries($1, $2, $3, $4) ORDER BY 1, 2',
-        [$since ? day_start_utc($since) : null, OPENING_BALANCE, RESET_HOUR, LOCAL_TZ]
+        'SELECT "timestamp", logentryid, day, epoch, d_in, d_out, balance FROM balance_entries($1, $2, $3, $4, $5) ORDER BY 1, 2',
+        [$since ? day_start_utc($since) : null, OPENING_BALANCE, RESET_HOUR, LOCAL_TZ,
+         $until ? $until->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s') : null]
     );
     return pg_fetch_all($res) ?: [];
 }

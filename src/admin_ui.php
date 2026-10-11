@@ -35,7 +35,7 @@ function fmt_local(?string $ts, string $format = 'd/m/Y H:i'): string
 
 const WEEKDAYS = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
 
-function page(string $title, string $body, ?array $user, string $active = ''): never
+function page(string $title, string $body, ?array $user, string $active = '', array $scripts = []): never
 {
     header('Content-Type: text/html; charset=utf-8');
     header('Cache-Control: no-store');
@@ -46,7 +46,7 @@ function page(string $title, string $body, ?array $user, string $active = ''): n
 
     $nav = $toggle = '';
     if ($user) {
-        $items = ['reunioes' => 'Reuniões', 'dias-especiais' => 'Dias especiais', 'pessoas' => 'Pessoas', 'correcoes' => 'Correções', 'contadores' => 'Contadores'];
+        $items = ['reunioes' => 'Reuniões', 'dias-especiais' => 'Dias especiais', 'pessoas' => 'Pessoas', 'correcoes' => 'Correções', 'contadores' => 'Contadores', 'estatisticas' => 'Estatísticas'];
         if ($user['can_manage_users']) {
             $items['utilizadores'] = 'Utilizadores';
         }
@@ -77,6 +77,7 @@ function page(string $title, string $body, ?array $user, string $active = ''): n
         . '<link rel="stylesheet" href="/assets/common.css"><link rel="stylesheet" href="/assets/admin.css"></head><body><main>'
         . '<header><div class="title">' . $toggle . '<h1>Administração</h1></div><div class="who"><a class="sub" href="/reunioes">Ver o site</a> ' . $who . '</div></header>'
         . $nav . $flashes . '<h2>' . h($title) . '</h2>' . $body
-        . '</main><script src="/assets/admin.js"></script></body></html>';
+        . '</main><script src="/assets/admin.js"></script>'
+        . implode('', array_map(fn($s) => '<script src="' . h($s) . '"></script>', $scripts)) . '</body></html>';
     exit;
 }

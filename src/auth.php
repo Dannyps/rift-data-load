@@ -76,6 +76,9 @@ function client_ip(): string
 /** The logged-in user (re-read from the database every request, so changes apply at once) or null. */
 function current_user($con): ?array
 {
+    if (!isset($_COOKIE[SESSION_NAME])) {
+        return null;      // no session cookie: do not create a session for anonymous visitors
+    }
     start_session();
     if (empty($_SESSION['user_id']) || time() - ($_SESSION['seen'] ?? 0) > IDLE_TIMEOUT) {
         unset($_SESSION['user_id']);

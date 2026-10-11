@@ -7,6 +7,7 @@
 require(__DIR__ . "/sql/utils.php");
 require(__DIR__ . "/src/auth.php");
 require(__DIR__ . "/src/services.php");
+require(__DIR__ . "/src/stats_pages.php");
 require(__DIR__ . "/src/admin_ui.php");
 
 $con = db_connect();
@@ -14,6 +15,74 @@ $con = db_connect();
 $path = rtrim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/');
 $route = str_starts_with($path, '/admin/') ? substr($path, 6) : '/';
 $isPost = $_SERVER['REQUEST_METHOD'] === 'POST';
+
+// ---------------------------------------------------------------- JSON API
+// Used by the statistics page and by the report dialog on the public pages (same origin; the session cookie is
+// limited to /admin, which is why these live here). Anonymous callers only learn that they are not logged in.
+
+if (str_starts_with($route, '/api/')) {
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
+    $apiUser = current_user($con);
+    $out = function ($data, int $status = 200): never {
+        http_response_code($status);
+        echo json_encode($data, JSON_UNESCAPED_UNICODE);
+        exit;
+    };
+
+    if ($route === '/api/me') {
+        $out($apiUser ? ['loggedIn' => true, 'user' => $apiUser['username'], 'csrf' => csrf_token()] : ['loggedIn' => false]);
+    }
+    if (!$apiUser) {
+        $out(['error' => 'login'], 401);
+    }
+    $nowApi = new DateTimeImmutable('now', utc());
+
+    if ($route === '/api/report') {
+        if ($isPost) {
+            if (!csrf_ok()) {
+                $out(['error' => 'csrf'], 400);
+            }
+            [$err, $saved] = report_save($con, $apiUser['username'], $nowApi, $_POST);
+            if ($err) {
+                $out(['error' => $err], 422);
+            }
+            audit($con, $apiUser['username'], 'relatorio.guardar', ($_POST['day'] ?? '') . ' ' . ($_POST['time'] ?? ''));
+            $out(['ok' => true, 'report' => $saved]);
+        }
+        $day = (string)($_GET['day'] ?? '');
+        $time = (string)($_GET['time'] ?? '');
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $day) || !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $time)) {
+            $out(['error' => 'bad request'], 400);
+        }
+        $out(['report' => report_get($con, $day, $time), 'suggest' => report_suggestions($con, $day, $time)]);
+    }
+
+    if ($route === '/api/stats') {
+        $part = (string)($_GET['part'] ?? 'week');
+        if ($part === 'week') {
+            $d = (string)($_GET['week'] ?? '');
+            $sun = week_start(preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) ? $d : $nowApi->setTimezone(local_tz())->format('Y-m-d'));
+            $out(stats_week_data($con, $nowApi, $sun));
+        }
+        if ($part === 'month') {
+            $ym = (string)($_GET['month'] ?? $nowApi->setTimezone(local_tz())->format('Y-m'));
+            if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $ym)) {
+                $out(['error' => 'bad request'], 400);
+            }
+            $prev = (new DateTimeImmutable("$ym-01"))->modify('-1 month')->format('Y-m');
+            $out(['month' => stats_month_summary($con, $ym), 'previous' => stats_month_summary($con, $prev)]);
+        }
+        if ($part === 'year') {
+            $y = (int)($_GET['year'] ?? $nowApi->setTimezone(local_tz())->format('Y'));
+            if ($y < 2020 || $y > 2100) {
+                $out(['error' => 'bad request'], 400);
+            }
+            $out(stats_year_data($con, $y));
+        }
+    }
+    $out(['error' => 'not found'], 404);
+}
 
 // ---------------------------------------------------------------- login / logout
 
@@ -416,6 +485,59 @@ if ($route === '/pessoas') {
         $body .= '</tbody></table></div>';
     }
     page('Pessoas', $body, $user, 'pessoas');
+}
+
+// ---------------------------------------------------------------- estatísticas
+
+if ($route === '/estatisticas') {
+    $fields = [
+        'late_grace_min' => ['Tolerância de atraso (minutos)', 'number'],
+        'devotional_morning' => ['Devocional da manhã (se o plano não tiver)', 'time'],
+        'devotional_afternoon' => ['Devocional da tarde (se o plano não tiver)', 'time'],
+        'exit_ref_1' => ['Saída: 1.ª hora de referência', 'time'],
+        'exit_ref_2' => ['Saída: 2.ª hora de referência', 'time'],
+        'exit_threshold' => ['Saída: «vazio» quando o saldo é, no máximo,', 'number'],
+    ];
+    if ($isPost) {
+        $new = [];
+        foreach ($fields as $key => $_) {
+            $new[$key] = trim((string)($_POST[$key] ?? ''));
+            if ($problem = stats_setting_problem($key, $new[$key])) {
+                flash('error', $fields[$key][0] . ': ' . $problem);
+                back();
+            }
+        }
+        $old = stats_settings($con);
+        $changed = [];
+        foreach ($new as $key => $value) {
+            if ($old[$key] !== $value) {
+                pg_query_params($con, "INSERT INTO settings (key, value, set_by) VALUES ($1, $2, $3)
+                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, set_by = EXCLUDED.set_by, set_at = now()", [$key, $value, $user['username']]);
+                $changed[] = "$key: {$old[$key]} → $value";
+            }
+        }
+        if ($changed) {
+            audit($con, $user['username'], 'estatisticas.definicoes', implode('; ', $changed));
+            flash('ok', 'Definições guardadas. Aplicam-se às reuniões que ainda não terminaram; as já terminadas mantêm os valores com que foram calculadas.');
+        }
+        back();
+    }
+
+    $settings = stats_settings($con);
+    $form = '<details class="card"><summary><strong>Definições</strong> <span class="hint">tolerância de atraso, devocionais, velocidade de saída</span></summary>'
+        . '<p class="hint">Alterar uma definição só afeta as reuniões que ainda não terminaram: as já guardadas mantêm os valores com que foram calculadas (a tolerância usada fica registada em cada uma).</p>'
+        . '<form method="post">' . csrf_field() . '<div class="row">';
+    foreach ($fields as $key => [$label, $type]) {
+        $form .= '<div><label for="s_' . $key . '">' . h($label) . '</label><input id="s_' . $key . '" name="' . $key . '" type="' . $type . '" value="' . h($settings[$key]) . '"'
+            . ($type === 'number' ? ' min="0" step="1"' : '') . ' required></div>';
+    }
+    $form .= '</div><p><button class="primary">Guardar definições</button></p></form></details>';
+
+    $body = '<p class="hint">Números do contador de entradas e saídas e os relatórios guardados a partir do diálogo de cada reunião (só com sessão iniciada). '
+        . 'Os dados do contador começam a 11/10/2026; antes disso não há estatísticas.</p>'
+        . '<div id="stats" class="stats"><div class="hint">A carregar…</div></div>'
+        . $form;
+    page('Estatísticas', $body, $user, 'estatisticas', ['/assets/stats.js']);
 }
 
 // ---------------------------------------------------------------- contadores (manual balance reset)

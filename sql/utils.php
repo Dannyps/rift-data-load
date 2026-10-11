@@ -29,7 +29,7 @@ function ensure_schema($con)
 }
 
 // Bump together with the COMMENT on balance_entries() in seed.sql whenever the function changes.
-const SCHEMA_VERSION = 'v2';
+const SCHEMA_VERSION = 'v3';
 
 function ensure_schema_is_valid($con)
 {
@@ -59,7 +59,7 @@ function ensure_schema_is_valid($con)
                     WHERE table_name = 'event_snapshots' AND column_name = 'correction_note')
         AND EXISTS (SELECT 1 FROM information_schema.columns
                     WHERE table_name = 'records' AND column_name = 'received_at')
-        AND coalesce(obj_description(to_regprocedure('balance_entries(timestamp, int, int, text)'), 'pg_proc'), '') = $1
+        AND coalesce(obj_description(to_regprocedure('balance_entries(timestamp, int, int, text, timestamp)'), 'pg_proc'), '') = $1
         AS schema_ok", [SCHEMA_VERSION]);
 
     $res = pg_fetch_assoc($res);
