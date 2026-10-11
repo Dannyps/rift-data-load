@@ -66,7 +66,9 @@ It follows the folders Porto and Young Adults & Youth (`src/pco.php`: `PCO_ROOT_
   A line like `9h30 X`, `9:30 X` or `X (9:30)` applies to that meeting only; other lines to every meeting of the
   plan. Names are shown as typed. A plan applies to the meetings of its day that start within its service times
   (the Sunday morning plan covers 09:30 and 11:30). Empty roles show "por anunciar" until the meeting is over.
-  Admin → Pessoas overrides a name for one meeting.
+  If an item has no Person note at all, its "Band" note is used instead, but only when it reads like names (mixed
+  case, no stage-cue words such as BANDA/VOZES/SOBE/LUZ), because that field usually holds cues like "BANDA SOBE A
+  FALTAR 5MIN". Admin → Pessoas overrides a name for one meeting.
 - **Gotcha:** the Planning Center account is set to America/Los_Angeles but the times in it are Portuguese
   wall-clock times, so the sync reads them in that zone and treats them as Lisbon time.
 - `php pco_sync.php --dry-run` shows what would change; `--backfill-days=70` also reads the people of older plans;

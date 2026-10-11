@@ -245,6 +245,14 @@ function week_people($con, string $sunday, array $services, bool $withOverrides 
                         [$parsed, $flags] = $raw ? pco_parse_person($raw[$role] ?? null, $byDay[$s['day']]) : [[], []];
                         $v = $parsed[$time] ?? null;
                         $flag = $flags ? implode(', ', $flags) : null;
+                        // no Person note at all: the name may be in the item's Band note (only if it reads like a name)
+                        if ($raw && trim((string)($raw[$role] ?? '')) === '') {
+                            [$bandParsed, $bandFlags] = pco_parse_person($raw[$role . '_band'] ?? null, $byDay[$s['day']]);
+                            $bv = $bandParsed[$time] ?? null;
+                            if (!$bandFlags && pco_band_value_ok($bv)) {
+                                [$v, $flag] = [$bv, 'nota Banda'];
+                            }
+                        }
                     }
                     if ($v !== null && $v !== '') {
                         [$value, $source] = [$v, 'pco'];

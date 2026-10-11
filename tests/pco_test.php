@@ -53,6 +53,15 @@ check('presenting the preacher is an MC item, not preaching', pco_item_roles('MC
 check('songs and others have no role', pco_item_roles('DEVOCIONAL'), []);
 check('prayer (youth) is not the MC', pco_item_roles('ORAÇÃO  '), []);
 
+// the Band note is a fallback for names, never for stage cues
+foreach (['Lucas Orgarato' => true, 'Pra. Deise' => true, 'Pr. Isaque' => true, 'Renato e Gabi' => true,
+          'BANDA SOBE A FALTAR 5MIN' => false, 'BANDA SOBE A PEDIDO DO PASTOR' => false, 'BANDA SOBE A FALTAR 5 MIN PARA TERMINAR A PREGAÇÃO' => false,
+          'Banda sobe a pedido do pastor' => false, 'VOZES SOBEM QUANDO A IGREJA FICAR DE PÉ' => false, 'Luz de sala e palco' => false,
+          'JP' => false, '' => false] as $v => $good) {
+    check("band value '" . $v . "' ok=" . json_encode($good), pco_band_value_ok($v), $good);
+}
+check('band note with per-meeting tags', pco_parse_person("Pra. Deise (9:30)\nPr. Isaque (11:30)", $AM), [['09:30' => 'Pra. Deise', '11:30' => 'Pr. Isaque'], []]);
+
 // leader position
 check('leader position', (bool)preg_match(PCO_LEADER_POSITION, 'a) Líder Louvor'), true);
 check('co-leader is not the leader', (bool)preg_match(PCO_LEADER_POSITION, 'b)Co-Líder Louvor'), false);

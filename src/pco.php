@@ -39,6 +39,10 @@ const PCO_ROLE_ITEMS = [
     ['pregador', '/PREGA[ÇC][ÃA]O/iu'],
     ['oferta', '/^\W*OFERTA/iu'],
 ];
+// Some plans put the name in the "Band" note of the item instead of "Person" (the worship team's cue
+// field). It is only used when the item has no Person note at all, and only if it reads like names:
+// the same Band field usually holds stage cues ("BANDA SOBE A PEDIDO DO PASTOR") which must not be taken.
+const PCO_BAND_CUE_WORDS = '/\b(banda|vozes?|sobe|sobem|luz|palco|m[úu]sica|instrumental|trad|c[áa]mara|playlist|v[íi]deo)\b/iu';
 const PCO_LEADER_POSITION = '/^\s*a\)\s*L[ií]der\s+Louvor\s*$/iu';
 
 function pco_clean_name(string $s): string
@@ -94,6 +98,19 @@ function pco_parse_person(?string $note, array $meetings): array
         }
     }
     return [$result, array_values(array_unique($flags))];
+}
+
+/** Is a value taken from a Band note a person (not a stage cue)? Names are mixed case, cues are shouted. */
+function pco_band_value_ok(?string $value): bool
+{
+    if ($value === null || $value === '') {
+        return false;
+    }
+    $letters = preg_replace('/[^\p{L}]/u', '', $value);
+    return mb_strlen($letters) >= 3
+        && $letters !== mb_strtoupper($letters)
+        && !preg_match(PCO_BAND_CUE_WORDS, $value)
+        && preg_match('/^[\p{L}.\'’\- ]+(?:\s(?:e|\+|&)\s[\p{L}.\'’\- ]+)*(?:\s*\([^)]*\))?$/u', $value);
 }
 
 /** Which roles' items does a title belong to? First matching role in PCO_ROLE_ITEMS order. */
@@ -260,26 +277,36 @@ function pco_plans(string $typeId, DateTimeZone $orgTz, DateTimeImmutable $now, 
 function pco_plan_people(string $typeId, string $planId): array
 {
     $base = "/services/v2/service_types/$typeId/plans/$planId";
-    $raw = ['mc' => null, 'oferta' => null, 'pregador' => null, 'lider' => []];
+    $raw = ['mc' => null, 'oferta' => null, 'pregador' => null, 'lider' => [],
+            'mc_band' => null, 'oferta_band' => null, 'pregador_band' => null];
 
     foreach (pco_get_all("$base/items")['data'] as $item) {
         $a = $item['attributes'];
         if ($a['item_type'] !== 'item') {
             continue;
         }
-        $roles = array_filter(pco_item_roles((string)$a['title']), fn($r) => $raw[$r] === null);
-        if (!$roles) {
+        $roles = pco_item_roles((string)$a['title']);
+        if (!$roles || !array_filter($roles, fn($r) => $raw[$r] === null || $raw[$r . '_band'] === null)) {
             continue;
         }
-        $notes = [];
+        $person = $band = [];
         foreach (pco_get_all("$base/items/{$item['id']}/item_notes")['data'] as $n) {
-            if ($n['attributes']['category_name'] === 'Person' && trim((string)$n['attributes']['content']) !== '') {
-                $notes[] = trim((string)$n['attributes']['content']);
+            $text = trim((string)$n['attributes']['content']);
+            if ($text === '') {
+                continue;
+            }
+            if ($n['attributes']['category_name'] === 'Person') {
+                $person[] = $text;
+            } elseif ($n['attributes']['category_name'] === 'Band') {
+                $band[] = $text;
             }
         }
-        if ($notes) {
-            foreach ($roles as $r) {
-                $raw[$r] = implode("\n", $notes);
+        foreach ($roles as $r) {
+            if ($person && $raw[$r] === null) {
+                $raw[$r] = implode("\n", $person);
+            }
+            if ($band && $raw[$r . '_band'] === null) {
+                $raw[$r . '_band'] = implode("\n", $band);
             }
         }
     }
