@@ -15,6 +15,7 @@
     --grid: #e4e3df;
     --series-in: #2a78d6;
     --series-out: #eb6834;
+    --series-bal: #1baf7a;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -26,6 +27,7 @@
       --grid: #333331;
       --series-in: #3987e5;
       --series-out: #d95926;
+      --series-bal: #199e70;
     }
   }
   * { box-sizing: border-box; }
@@ -87,12 +89,14 @@
   <section class="tiles" aria-label="Totals for the selected range">
     <div class="tile"><div class="label"><span class="swatch" style="background:var(--series-in)"></span>Incoming</div><div class="value" id="tin">–</div><div class="note" id="rangeNote1"></div></div>
     <div class="tile"><div class="label"><span class="swatch" style="background:var(--series-out)"></span>Outgoing</div><div class="value" id="tout">–</div><div class="note" id="rangeNote2"></div></div>
+    <div class="tile"><div class="label"><span class="swatch" style="background:var(--series-bal)"></span>Balance now</div><div class="value" id="tbal">–</div><div class="note">estimated people inside</div></div>
     <div class="tile"><div class="label">Last reading</div><div class="value" id="tlast">–</div><div class="note" id="tlastnote"></div></div>
   </section>
 
   <div class="controls">
+    <div class="ranges" role="group" aria-label="View" id="views"></div>
     <div class="ranges" role="group" aria-label="Time range" id="ranges"></div>
-    <div class="legend"><span><i class="swatch" style="background:var(--series-in)"></i>Incoming</span><span><i class="swatch" style="background:var(--series-out)"></i>Outgoing</span></div>
+    <div class="legend" id="legend"><span><i class="swatch" style="background:var(--series-in)"></i>Incoming</span><span><i class="swatch" style="background:var(--series-out)"></i>Outgoing</span></div>
     <button id="toggle" aria-pressed="false">Table</button>
   </div>
 
@@ -105,6 +109,10 @@
     <p>The counter reports a cumulative total once a minute. The values here are the difference between
       consecutive readings, summed per interval; if the counter drops (a reset), the new reading counts as
       the increase. The first reading in the database has nothing to compare with and counts as zero.</p>
+    <p><b>Balance.</b> The estimated number of people inside. It assumes <span id="openingNote">100</span> people
+      were in the building at the very first reading, then adds every incoming and subtracts every outgoing
+      count since. Counting errors are never corrected, so the estimate can drift over time and can even go
+      below zero. Each point is the balance at the end of its interval.</p>
     <p>The tiles add up every interval in the selected range. <i>Last reading</i> is the time stamped by
       the counter, and <i>received</i> is when the server got it. Times are shown in your local time zone.</p>
   </footer>
@@ -112,11 +120,16 @@
 
 <script>
 const RANGES = { '1h': 'Last hour', '6h': '6 hours', '24h': '24 hours', '7d': '7 days', '30d': '30 days' };
-const SERIES = [ { key: 'in', name: 'Incoming', css: '--series-in' }, { key: 'out', name: 'Outgoing', css: '--series-out' } ];
+const VIEWS = { counts: 'Counts', balance: 'Balance' };
+const SERIES_BY_VIEW = {
+  counts: [ { key: 'in', name: 'Incoming', css: '--series-in' }, { key: 'out', name: 'Outgoing', css: '--series-out' } ],
+  balance: [ { key: 'balance', name: 'Balance', css: '--series-bal' } ],
+};
 const W = 960, H = 340, M = { l: 44, r: 16, t: 12, b: 28 };
 
-let range = new URLSearchParams(location.search).get('range');
-if (!RANGES[range]) range = '24h';
+const params = new URLSearchParams(location.search);
+let range = RANGES[params.get('range')] ? params.get('range') : '1h';
+let view = VIEWS[params.get('view')] ? params.get('view') : 'counts';
 let data = null;
 
 const $ = id => document.getElementById(id);
@@ -130,11 +143,16 @@ function fmtTime(iso, bucket) {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-function niceMax(v) {
-  // a multiple of 4 so the four gridline steps are whole numbers
-  const p = Math.pow(10, Math.floor(Math.log10(v)));
-  for (const m of [1, 2, 4, 8, 10, 20, 40, 80, 100]) if (m * p / 10 >= v && (m * p / 10) % 4 === 0) return m * p / 10;
-  return Math.ceil(v / 4) * 4;
+// Gridline values: counts start at zero; the balance floats around its data. Always 5 whole-number lines.
+function scale(values, fromZero) {
+  let lo = fromZero ? 0 : Math.min(...values), hi = Math.max(...values);
+  const raw = Math.max(hi - lo, 4) / 4;
+  const p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = Math.max(1, [1, 2, 2.5, 5, 10].map(m => m * p).find(v => v >= raw && Number.isInteger(v)) || Math.ceil(raw));
+  const min = fromZero ? 0 : Math.floor(lo / step) * step;
+  let n = 4;
+  while (min + n * step < hi) n++;
+  return { min, max: min + n * step, ticks: Array.from({ length: n + 1 }, (_, i) => min + i * step) };
 }
 
 function render() {
@@ -143,6 +161,10 @@ function render() {
   const unit = b >= 86400 ? 'one day' : b >= 3600 ? 'one hour' : b === 60 ? 'one minute' : `${b / 60} minutes`;
   $('bucketNote').textContent = unit + ' for this range';
   const sum = k => pts.reduce((s, p) => s + p[k], 0);
+  const SERIES = SERIES_BY_VIEW[view];
+  $('legend').hidden = SERIES.length < 2;
+  $('openingNote').textContent = data.openingBalance;
+  $('tbal').textContent = pts.length ? pts[pts.length - 1].balance.toLocaleString() : '–';
   $('tin').textContent = sum('in').toLocaleString();
   $('tout').textContent = sum('out').toLocaleString();
   $('rangeNote1').textContent = $('rangeNote2').textContent = RANGES[range].toLowerCase().replace(/^last /, 'last ');
@@ -154,8 +176,8 @@ function render() {
   }
 
   // table view
-  $('tablewrap').innerHTML = '<table><thead><tr><th>Time</th><th>Incoming</th><th>Outgoing</th></tr></thead><tbody>' +
-    pts.slice().reverse().map(p => `<tr><td>${fmtTime(p.t, b)}</td><td>${p.in}</td><td>${p.out}</td></tr>`).join('') + '</tbody></table>';
+  $('tablewrap').innerHTML = '<table><thead><tr><th>Time</th><th>Incoming</th><th>Outgoing</th><th>Balance</th></tr></thead><tbody>' +
+    pts.slice().reverse().map(p => `<tr><td>${fmtTime(p.t, b)}</td><td>${p.in}</td><td>${p.out}</td><td>${p.balance}</td></tr>`).join('') + '</tbody></table>';
 
   const chart = $('chart');
   chart.querySelector('svg')?.remove();
@@ -167,15 +189,15 @@ function render() {
 
   const t0 = new Date(pts[0].t).getTime(), t1 = new Date(pts[pts.length - 1].t).getTime();
   const span = Math.max(t1 - t0, b * 1000);
-  const ymax = niceMax(Math.max(1, ...pts.map(p => Math.max(p.in, p.out))));
+  const sc = scale(pts.flatMap(p => SERIES.map(se => p[se.key])), view === 'counts');
+  const ymin = sc.min, ymax = sc.max;
   const x = t => M.l + (new Date(t).getTime() - t0) / span * (W - M.l - M.r);
-  const y = v => H - M.b - v / ymax * (H - M.t - M.b);
+  const y = v => H - M.b - (v - ymin) / (ymax - ymin) * (H - M.t - M.b);
 
-  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Incoming and outgoing counts per ${b >= 3600 ? 'hour/day' : 'minute interval'}">`;
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${view === 'balance' ? 'Estimated number of people inside' : 'Incoming and outgoing counts per interval'}">`;
   s += '<g class="grid">';
-  for (let i = 0; i <= 4; i++) {
-    const v = ymax / 4 * i;
-    s += `<line x1="${M.l}" x2="${W - M.r}" y1="${y(v)}" y2="${y(v)}"/><text x="${M.l - 8}" y="${y(v) + 4}" text-anchor="end">${+v.toFixed(1)}</text>`;
+  for (const v of sc.ticks) {
+    s += `<line x1="${M.l}" x2="${W - M.r}" y1="${y(v)}" y2="${y(v)}"/><text x="${M.l - 8}" y="${y(v) + 4}" text-anchor="end">${v.toLocaleString()}</text>`;
   }
   s += '</g>';
   for (let i = 0; i <= 5; i++) {
@@ -226,12 +248,20 @@ async function load() {
   }
 }
 
-$('ranges').innerHTML = Object.entries(RANGES).map(([k, v]) => `<button data-r="${k}" aria-pressed="${k === range}">${v}</button>`).join('');
+function syncUrl() { history.replaceState(null, '', `?range=${range}&view=${view}`); }
+function pressed(group, key) { $(group).querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.k === key)); }
+function buttons(group, items, current) {
+  $(group).innerHTML = Object.entries(items).map(([k, v]) => `<button data-k="${k}" aria-pressed="${k === current}">${v}</button>`).join('');
+}
+buttons('ranges', RANGES, range);
+buttons('views', VIEWS, view);
 $('ranges').addEventListener('click', e => {
-  const k = e.target.dataset.r; if (!k) return;
-  range = k; history.replaceState(null, '', '?range=' + k);
-  $('ranges').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.r === k));
-  load();
+  const k = e.target.dataset.k; if (!k) return;
+  range = k; syncUrl(); pressed('ranges', k); load();
+});
+$('views').addEventListener('click', e => {
+  const k = e.target.dataset.k; if (!k) return;
+  view = k; syncUrl(); pressed('views', k); render();
 });
 $('toggle').addEventListener('click', () => {
   const on = $('toggle').getAttribute('aria-pressed') !== 'true';
