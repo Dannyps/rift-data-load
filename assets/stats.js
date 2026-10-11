@@ -138,7 +138,8 @@
 
     var g = '';
     for (var v = ymin; v <= ymax + 1e-9; v += step) g += '<line class="grid" x1="' + M.l + '" x2="' + (W - M.r) + '" y1="' + Y(v) + '" y2="' + Y(v) + '"/><text class="tick" x="' + (M.l - 6) + '" y="' + (Y(v) + 4) + '" text-anchor="end">' + num(v) + '</text>';
-    for (var m = Math.ceil(x0 / 30) * 30; m <= x1; m += 30) g += '<text class="tick" x="' + X(m) + '" y="' + (H - 12) + '" text-anchor="middle">' + label(m) + '</text>';
+    var tickStep = W < 450 ? 60 : 30;     // fewer clock labels on a phone
+    for (var m = Math.ceil(x0 / tickStep) * tickStep; m <= x1; m += tickStep) g += '<text class="tick" x="' + X(m) + '" y="' + (H - 12) + '" text-anchor="middle">' + label(m) + '</text>';
     var path = function (pts) { return pts.map(function (p, i) { return (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ',' + Y(p[1]).toFixed(1); }).join(''); };
     var marks = '<line class="mark" x1="' + X(0) + '" x2="' + X(0) + '" y1="' + M.t + '" y2="' + (H - M.b) + '"/><text class="marklbl" x="' + (X(0) + 4) + '" y="' + (M.t + 10) + '">início</text>';
     marks += '<line class="mark" x1="' + X(s.durationMin) + '" x2="' + X(s.durationMin) + '" y1="' + M.t + '" y2="' + (H - M.b) + '"/><text class="marklbl" x="' + (X(s.durationMin) + 4) + '" y="' + (M.t + 10) + '">fim</text>';
@@ -219,9 +220,10 @@
       var f = function (x) { return x && x.minutes !== null && x.minutes !== undefined ? dec(x.minutes) + ' min' + (x.notReached ? ' (+' + x.notReached + ' sem chegar)' : '') : (x && x.notReached ? 'não atingiu' : '–'); };
       return '<tr><th scope="row">Depois das ' + e.ref + '</th><td>' + f(e) + '</td><td class="muted">' + f(pe) + '</td></tr>';
     }).join('') + '</tbody></table>' : '';
-    $('monthBody').innerHTML = '<div class="s-cards"><article class="s-card"><h4>' + esc(mon) + ' <span class="muted">· médias por reunião</span></h4><div class="s-tw"><table class="s-table"><thead><tr><th>Reunião</th><th>Nº</th><th>Assistência média</th><th>' + esc(pmon) + '</th><th>Atrasos</th><th>Devocional</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+    $('monthBody').innerHTML = '<div class="s-cards"><article class="s-card"><h4>' + esc(mon) + ' <span class="muted">· médias por reunião</span></h4><div class="s-tw"><table class="s-table stackable"><thead><tr><th>Reunião</th><th>Nº</th><th>Assistência média</th><th>' + esc(pmon) + '</th><th>Atrasos</th><th>Devocional</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
       '<div class="muted">Atrasos: só reuniões com o contador a funcionar desde antes do início.</div></article>' +
       '<article class="s-card"><h4>Domingos de ' + esc(mon) + '</h4><div class="s-big">' + dec(m.sundayAssistencia) + ' <span class="muted s-src">assistência média por domingo (soma das reuniões) · ' + m.sundays + ' domingo(s)</span></div><div class="muted">' + esc(pmon) + ': ' + dec(pv.sundayAssistencia) + (m.sundayAssistencia !== null && pv.sundayAssistencia !== null ? ' · diferença ' + (m.sundayAssistencia - pv.sundayAssistencia >= 0 ? '+' : '−') + dec(Math.abs(m.sundayAssistencia - pv.sundayAssistencia)) : '') + '</div>' + exit + '</article></div>';
+    if (window.stackTables) window.stackTables($('monthBody'));
   }
   function loadMonth() {
     var p = { part: 'month' };

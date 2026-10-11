@@ -135,3 +135,32 @@ div.muted { font-size: 12px; margin-top: 4px; }
 .s-tip > b:first-child { display: block; margin-bottom: 3px; }
 details.card summary { cursor: pointer; }
 details.card[open] summary { margin-bottom: 8px; }
+
+/* ---- tables as cards on phones (cells get data-label from admin.js) ---- */
+@media (max-width: 720px) {
+  .tablewrap { overflow-x: visible; }
+  table.stack, table.stack tbody { display: block; }
+  table.stack thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  table.stack tr { display: block; background: var(--surface-2); border-radius: 8px; padding: 6px 14px; margin: 0 0 10px; }
+  table.stack td, table.stack th { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; text-align: right;
+    padding: 6px 0; border: 0; border-bottom: 1px solid var(--grid); }
+  table.stack tr > :last-child { border-bottom: 0; }
+  table.stack td[data-label]:not([data-label=""])::before, table.stack th[data-label]:not([data-label=""])::before {
+    content: attr(data-label); color: var(--text-muted); font-size: 12px; text-align: left; flex: 0 0 auto; max-width: 45%; }
+  table.stack td.has-field { flex-direction: column; align-items: stretch; justify-content: flex-start; text-align: left; }
+  table.stack td.has-field input[type=checkbox] { width: auto; align-self: flex-start; }
+  table.stack td.has-field input, table.stack td.has-field select { width: 100%; min-width: 0; }
+  table.stack td.actions-cell { justify-content: flex-start; }
+  table.stack td .actions { justify-content: flex-start; }
+  table.stack td .hint { text-align: right; flex-basis: 100%; }
+  table.stack td.has-field .hint { text-align: left; }
+  table.stack td form.inline { flex-wrap: wrap; justify-content: flex-end; }
+  table.stack td.has-field form.inline { width: 100%; }
+  table.stack td.empty-cell { display: none; }
+  table.stack tr > td:nth-last-child(1 of :not(.empty-cell)) { border-bottom: 0; }
+  table.stack td form.inline input { flex: 1 1 120px; min-width: 0; }
+  table.stack td[colspan] { display: block; text-align: left; }
+  /* the statistics tables that opt in (the month table) */
+  .s-tw { overflow-x: visible; }
+  table.s-table.stack tr { background: var(--surface-1); }
+}
