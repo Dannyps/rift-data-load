@@ -109,10 +109,13 @@
     <p>The counter reports a cumulative total once a minute. The values here are the difference between
       consecutive readings, summed per interval; if the counter drops (a reset), the new reading counts as
       the increase. The first reading in the database has nothing to compare with and counts as zero.</p>
-    <p><b>Balance.</b> The estimated number of people inside. It assumes <span id="openingNote">100</span> people
-      were in the building at the very first reading, then adds every incoming and subtracts every outgoing
-      count since. Counting errors are never corrected, so the estimate can drift over time and can even go
-      below zero. Each point is the balance at the end of its interval.</p>
+    <p><b>Balance.</b> The estimated number of people inside: every incoming count added and every outgoing
+      count subtracted since the last reset. The building is assumed to be empty at
+      <span id="resetNote">04:00</span> every day, so the balance goes back to zero then and the line breaks.
+      Before the first reset in the data (<span id="openingNote">the first day</span>) it starts from the
+      first reading, so that day shows people who were already inside as a negative balance. Counting errors
+      are never corrected within a day, so the estimate can drift and can go below zero. Each point is the
+      balance at the end of its interval.</p>
     <p>The tiles add up every interval in the selected range. <i>Last reading</i> is the time stamped by
       the counter, and <i>received</i> is when the server got it. Times are shown in your local time zone.</p>
   </footer>
@@ -163,7 +166,8 @@ function render() {
   const sum = k => pts.reduce((s, p) => s + p[k], 0);
   const SERIES = SERIES_BY_VIEW[view];
   $('legend').hidden = SERIES.length < 2;
-  $('openingNote').textContent = data.openingBalance;
+  $('resetNote').textContent = String(data.resetHour).padStart(2, '0') + ':00 (' + data.timezone.replace('_', ' ') + ')';
+  $('openingNote').textContent = data.openingBalance ? `starting at ${data.openingBalance}` : 'starting at zero';
   $('tbal').textContent = pts.length ? pts[pts.length - 1].balance.toLocaleString() : '–';
   $('tin').textContent = sum('in').toLocaleString();
   $('tout').textContent = sum('out').toLocaleString();
@@ -205,7 +209,8 @@ function render() {
     s += `<text x="${x(t)}" y="${H - 8}" text-anchor="${i === 0 ? 'start' : i === 5 ? 'end' : 'middle'}">${fmtTime(new Date(t).toISOString(), b)}</text>`;
   }
   for (const se of SERIES) {
-    const d = pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.t).toFixed(1)},${y(p[se.key]).toFixed(1)}`).join('');
+    // a new local day (balance reset) starts a new segment instead of a vertical drop
+    const d = pts.map((p, i) => `${i && (se.key !== 'balance' || p.day === pts[i - 1].day) ? 'L' : 'M'}${x(p.t).toFixed(1)},${y(p[se.key]).toFixed(1)}`).join('');
     s += `<path d="${d}" fill="none" stroke="var(${se.css})" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
     const last = pts[pts.length - 1];
     s += `<circle cx="${x(last.t)}" cy="${y(last[se.key])}" r="4" fill="var(${se.css})" stroke="var(--surface-1)" stroke-width="2"/>`;
