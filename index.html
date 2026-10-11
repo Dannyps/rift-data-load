@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-PT">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RIFT people counter</title>
+<title>Contador de pessoas RIFT</title>
 <style>
   :root {
     color-scheme: light dark;
@@ -82,51 +82,51 @@
 <body>
 <main>
   <header>
-    <h1>RIFT people counter</h1>
-    <div class="sub" id="status">Loading…</div>
+    <h1>Contador de pessoas RIFT</h1>
+    <div class="sub" id="status">A carregar…</div>
   </header>
 
-  <section class="tiles" aria-label="Totals for the selected range">
-    <div class="tile"><div class="label"><span class="swatch" style="background:var(--series-in)"></span>Incoming</div><div class="value" id="tin">–</div><div class="note" id="rangeNote1"></div></div>
-    <div class="tile"><div class="label"><span class="swatch" style="background:var(--series-out)"></span>Outgoing</div><div class="value" id="tout">–</div><div class="note" id="rangeNote2"></div></div>
-    <div class="tile"><div class="label"><span class="swatch" style="background:var(--series-bal)"></span>Balance now</div><div class="value" id="tbal">–</div><div class="note">estimated people inside</div></div>
-    <div class="tile"><div class="label">Last reading</div><div class="value" id="tlast">–</div><div class="note" id="tlastnote"></div></div>
+  <section class="tiles" aria-label="Totais do período selecionado">
+    <div class="tile"><div class="label"><span class="swatch" style="background:var(--series-in)"></span>Entradas</div><div class="value" id="tin">–</div><div class="note" id="rangeNote1"></div></div>
+    <div class="tile"><div class="label"><span class="swatch" style="background:var(--series-out)"></span>Saídas</div><div class="value" id="tout">–</div><div class="note" id="rangeNote2"></div></div>
+    <div class="tile"><div class="label"><span class="swatch" style="background:var(--series-bal)"></span>Saldo atual</div><div class="value" id="tbal">–</div><div class="note">pessoas dentro (estimativa)</div></div>
+    <div class="tile"><div class="label">Última leitura</div><div class="value" id="tlast">–</div><div class="note" id="tlastnote"></div></div>
   </section>
 
   <div class="controls">
-    <div class="ranges" role="group" aria-label="View" id="views"></div>
-    <div class="ranges" role="group" aria-label="Time range" id="ranges"></div>
-    <div class="legend" id="legend"><span><i class="swatch" style="background:var(--series-in)"></i>Incoming</span><span><i class="swatch" style="background:var(--series-out)"></i>Outgoing</span></div>
-    <button id="toggle" aria-pressed="false">Table</button>
+    <div class="ranges" role="group" aria-label="Vista" id="views"></div>
+    <div class="ranges" role="group" aria-label="Período" id="ranges"></div>
+    <div class="legend" id="legend"><span><i class="swatch" style="background:var(--series-in)"></i>Entradas</span><span><i class="swatch" style="background:var(--series-out)"></i>Saídas</span></div>
+    <button id="toggle" aria-pressed="false">Tabela</button>
   </div>
 
   <div id="chart"><div class="tip" id="tip"></div></div>
   <div id="tablewrap" class="tablewrap" hidden></div>
   <footer>
-    <p><b>What the values mean.</b> Each point is the number of people counted in one interval
-      (<span id="bucketNote">a few minutes</span>), not a running total. <i>Incoming</i> counts people
-      passing the line in the entering direction, <i>outgoing</i> in the leaving direction.</p>
-    <p>The counter reports a cumulative total once a minute. The values here are the difference between
-      consecutive readings, summed per interval; if the counter drops (a reset), the new reading counts as
-      the increase. The first reading in the database has nothing to compare with and counts as zero.</p>
-    <p><b>Balance.</b> The estimated number of people inside: every incoming count added and every outgoing
-      count subtracted since the last reset. The building is assumed to be empty at
-      <span id="resetNote">04:00</span> every day, so the balance goes back to zero then and the line breaks.
-      Before the first reset in the data (<span id="openingNote">the first day</span>) it starts from the
-      first reading, so that day shows people who were already inside as a negative balance. Counting errors
-      are never corrected within a day, so the estimate can drift and can go below zero. Each point is the
-      balance at the end of its interval.</p>
-    <p>The tiles add up every interval in the selected range. <i>Last reading</i> is the time stamped by
-      the counter, and <i>received</i> is when the server got it. Times are shown in your local time zone.</p>
+    <p><b>O que significam os valores.</b> Cada ponto é o número de pessoas contadas num intervalo
+      (<span id="bucketNote">alguns minutos</span>), e não um total acumulado. As <i>entradas</i> contam as pessoas
+      que passam a linha no sentido de entrada, as <i>saídas</i> no sentido de saída.</p>
+    <p>O contador envia um total acumulado uma vez por minuto. Os valores aqui apresentados são a diferença entre
+      leituras consecutivas, somada por intervalo; se o contador baixar (uma reposição), a nova leitura conta como
+      o aumento. A primeira leitura da base de dados não tem com que ser comparada e conta como zero.</p>
+    <p><b>Saldo.</b> O número estimado de pessoas dentro do edifício: cada entrada somada e cada saída subtraída
+      desde a última reposição. Assume-se que o edifício está vazio às
+      <span id="resetNote">04:00</span> de cada dia, pelo que o saldo volta a zero nessa altura e a linha é interrompida.
+      Antes da primeira reposição nos dados (<span id="openingNote">no primeiro dia</span>) o saldo parte da
+      primeira leitura. Os erros de contagem não são corrigidos ao longo do dia, por isso a estimativa pode
+      desviar-se e até ficar abaixo de zero. Cada ponto é o saldo no fim do respetivo intervalo.</p>
+    <p>Os cartões somam todos os intervalos do período selecionado. A <i>última leitura</i> é a hora registada
+      pelo contador e <i>recebida</i> é quando o servidor a recebeu. As horas são apresentadas no seu fuso horário.</p>
   </footer>
 </main>
 
 <script>
-const RANGES = { '1h': 'Last hour', '6h': '6 hours', '24h': '24 hours', '7d': '7 days', '30d': '30 days' };
-const VIEWS = { counts: 'Counts', balance: 'Balance' };
+const LOCALE = 'pt-PT';
+const RANGES = { '1h': 'Última hora', '6h': '6 horas', '24h': '24 horas', '7d': '7 dias', '30d': '30 dias' };
+const VIEWS = { counts: 'Contagens', balance: 'Saldo' };
 const SERIES_BY_VIEW = {
-  counts: [ { key: 'in', name: 'Incoming', css: '--series-in' }, { key: 'out', name: 'Outgoing', css: '--series-out' } ],
-  balance: [ { key: 'balance', name: 'Balance', css: '--series-bal' } ],
+  counts: [ { key: 'in', name: 'Entradas', css: '--series-in' }, { key: 'out', name: 'Saídas', css: '--series-out' } ],
+  balance: [ { key: 'balance', name: 'Saldo', css: '--series-bal' } ],
 };
 const W = 960, H = 340, M = { l: 44, r: 16, t: 12, b: 28 };
 
@@ -141,9 +141,9 @@ const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 function fmtTime(iso, bucket) {
   const d = new Date(iso);
-  if (bucket >= 86400) return d.toLocaleDateString([], { day: 'numeric', month: 'short' });
-  if (bucket >= 3600) return d.toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (bucket >= 86400) return d.toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' });
+  if (bucket >= 3600) return d.toLocaleString(LOCALE, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' });
 }
 
 // Gridline values: counts start at zero; the balance floats around its data. Always 5 whole-number lines.
@@ -161,32 +161,32 @@ function scale(values, fromZero) {
 function render() {
   if (!data) return;
   const pts = data.points, b = data.bucketSeconds;
-  const unit = b >= 86400 ? 'one day' : b >= 3600 ? 'one hour' : b === 60 ? 'one minute' : `${b / 60} minutes`;
-  $('bucketNote').textContent = unit + ' for this range';
+  const unit = b >= 86400 ? 'um dia' : b >= 3600 ? 'uma hora' : b === 60 ? 'um minuto' : `${b / 60} minutos`;
+  $('bucketNote').textContent = unit + ' neste período';
   const sum = k => pts.reduce((s, p) => s + p[k], 0);
   const SERIES = SERIES_BY_VIEW[view];
   $('legend').hidden = SERIES.length < 2;
   $('resetNote').textContent = String(data.resetHour).padStart(2, '0') + ':00 (' + data.timezone.replace('_', ' ') + ')';
-  $('openingNote').textContent = data.openingBalance ? `starting at ${data.openingBalance}` : 'starting at zero';
-  $('tbal').textContent = pts.length ? pts[pts.length - 1].balance.toLocaleString() : '–';
-  $('tin').textContent = sum('in').toLocaleString();
-  $('tout').textContent = sum('out').toLocaleString();
-  $('rangeNote1').textContent = $('rangeNote2').textContent = RANGES[range].toLowerCase().replace(/^last /, 'last ');
+  $('openingNote').textContent = data.openingBalance ? `a começar em ${data.openingBalance}` : 'a começar em zero';
+  $('tbal').textContent = pts.length ? pts[pts.length - 1].balance.toLocaleString(LOCALE) : '–';
+  $('tin').textContent = sum('in').toLocaleString(LOCALE);
+  $('tout').textContent = sum('out').toLocaleString(LOCALE);
+  $('rangeNote1').textContent = $('rangeNote2').textContent = RANGES[range].toLowerCase();
   if (data.lastReading) {
     const ageMin = Math.round((Date.now() - new Date(data.lastReceived)) / 60000);
-    $('tlast').textContent = new Date(data.lastReading).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    $('tlastnote').textContent = ageMin <= 1 ? 'received just now' : `received ${ageMin} min ago`;
-    $('status').textContent = ageMin > 5 ? `No data for ${ageMin} minutes` : `Live · ${tz}`;
+    $('tlast').textContent = new Date(data.lastReading).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' });
+    $('tlastnote').textContent = ageMin <= 1 ? 'recebida agora mesmo' : `recebida há ${ageMin} min`;
+    $('status').textContent = ageMin > 5 ? `Sem dados há ${ageMin} minutos` : `Em direto · ${tz}`;
   }
 
   // table view
-  $('tablewrap').innerHTML = '<table><thead><tr><th>Time</th><th>Incoming</th><th>Outgoing</th><th>Balance</th></tr></thead><tbody>' +
+  $('tablewrap').innerHTML = '<table><thead><tr><th>Hora</th><th>Entradas</th><th>Saídas</th><th>Saldo</th></tr></thead><tbody>' +
     pts.slice().reverse().map(p => `<tr><td>${fmtTime(p.t, b)}</td><td>${p.in}</td><td>${p.out}</td><td>${p.balance}</td></tr>`).join('') + '</tbody></table>';
 
   const chart = $('chart');
   chart.querySelector('svg')?.remove();
   if (!pts.length) {
-    chart.insertAdjacentHTML('afterbegin', '<svg viewBox="0 0 1 1" role="img" aria-label="No data" style="height:0"></svg><div class="empty">No data in this range yet.</div>');
+    chart.insertAdjacentHTML('afterbegin', '<svg viewBox="0 0 1 1" role="img" aria-label="Sem dados" style="height:0"></svg><div class="empty">Ainda não há dados neste período.</div>');
     return;
   }
   chart.querySelector('.empty')?.remove();
@@ -198,10 +198,10 @@ function render() {
   const x = t => M.l + (new Date(t).getTime() - t0) / span * (W - M.l - M.r);
   const y = v => H - M.b - (v - ymin) / (ymax - ymin) * (H - M.t - M.b);
 
-  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${view === 'balance' ? 'Estimated number of people inside' : 'Incoming and outgoing counts per interval'}">`;
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${view === 'balance' ? 'Número estimado de pessoas dentro do edifício' : 'Entradas e saídas por intervalo'}">`;
   s += '<g class="grid">';
   for (const v of sc.ticks) {
-    s += `<line x1="${M.l}" x2="${W - M.r}" y1="${y(v)}" y2="${y(v)}"/><text x="${M.l - 8}" y="${y(v) + 4}" text-anchor="end">${v.toLocaleString()}</text>`;
+    s += `<line x1="${M.l}" x2="${W - M.r}" y1="${y(v)}" y2="${y(v)}"/><text x="${M.l - 8}" y="${y(v) + 4}" text-anchor="end">${v.toLocaleString(LOCALE)}</text>`;
   }
   s += '</g>';
   for (let i = 0; i <= 5; i++) {
@@ -249,7 +249,7 @@ async function load() {
     data = await r.json();
     render();
   } catch (e) {
-    $('status').textContent = 'Could not load data';
+    $('status').textContent = 'Não foi possível carregar os dados';
   }
 }
 
@@ -271,7 +271,7 @@ $('views').addEventListener('click', e => {
 $('toggle').addEventListener('click', () => {
   const on = $('toggle').getAttribute('aria-pressed') !== 'true';
   $('toggle').setAttribute('aria-pressed', on);
-  $('toggle').textContent = on ? 'Chart' : 'Table';
+  $('toggle').textContent = on ? 'Gráfico' : 'Tabela';
   $('tablewrap').hidden = !on; $('chart').hidden = on;
 });
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
