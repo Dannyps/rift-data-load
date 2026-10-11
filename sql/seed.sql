@@ -101,6 +101,6 @@ CREATE TABLE IF NOT EXISTS event_snapshots (
 );
 
 INSERT INTO services (name, weekday, start_time)
-SELECT 'Serviço das ' || to_char(t, 'HH24:MI'), 0, t
+SELECT 'Reunião das ' || to_char(t, 'HH24:MI'), 0, t
 FROM (VALUES (time '09:30'), (time '11:30'), (time '17:30')) v(t)
 WHERE NOT EXISTS (SELECT 1 FROM services);
