@@ -3,14 +3,17 @@
 // Per-service attendance. The count of a service is the peak balance (people inside, see
 // balance.php) during its window; a service window is start_time .. start_time + duration_min.
 // Results are saved in service_snapshots, updated while the service runs and frozen once it is over.
-// On days with no scheduled service, more than EVENT_THRESHOLD people inside makes an "event"
-// (event_snapshots, at most one per local day).
+// More than EVENT_THRESHOLD people inside, in a stretch that is not part of a scheduled service's
+// crowd, makes an "event" (event_snapshots, at most one per local day; see event_stretch).
 
 require_once(__DIR__ . "/balance.php");
 require_once(__DIR__ . "/pco.php");
 require_once(__DIR__ . "/stats.php");
 
 const EVENT_THRESHOLD = 5;
+// Stretches above the threshold that are closer than this are one: a dip of a few minutes
+// (one person leaving at 6 -> 5) is not the building emptying.
+const EVENT_MERGE_GAP_MIN = 15;
 // The device reports each minute about 4 minutes late, so wait before freezing.
 const FREEZE_GRACE_MIN = 10;
 
@@ -125,7 +128,7 @@ function services_week($con, DateTimeImmutable $now, string $sunday): array
         $day = (new DateTimeImmutable($sunday, utc()))->modify("+$i days")->format('Y-m-d');
         $dayStart = parse_ts(day_start_utc(new DateTimeImmutable("$day 12:00", local_tz())));
         $row = $savedEvents[$day] ?? null;
-        if (!isset($serviceDays[$day]) && $dayStart <= $nowUtc && (!$row || $row['frozen'] !== 't')) {
+        if ($dayStart <= $nowUtc && (!$row || $row['frozen'] !== 't')) {
             $eventDays[$day] = $dayStart;
         }
     }
@@ -149,7 +152,8 @@ function services_week($con, DateTimeImmutable $now, string $sunday): array
             snapshot_exit($con, $day, $ref, $refUtc, $entries, $nowUtc, (int)$settings['exit_threshold']);
         }
         foreach ($eventDays as $day => $dayStart) {
-            snapshot_event($con, $day, $dayStart, $entries, $nowUtc, $grace);
+            $windows = array_map(fn($s) => [$s['window_start'], $s['window_end']], array_values(array_filter($services, fn($s) => $s['day'] === $day)));
+            snapshot_event($con, $day, $dayStart, $entries, $nowUtc, $grace, $windows);
         }
     }
 
@@ -238,19 +242,72 @@ function plan_matches_meeting(array $times, string $day, string $time): bool
     return false;
 }
 
-function snapshot_event($con, string $day, DateTimeImmutable $dayStart, array $entries, DateTimeImmutable $now, DateInterval $grace): void
+/**
+ * The event of a local day, or null. An event is a stretch of consecutive readings with more than
+ * EVENT_THRESHOLD people inside that does not touch any meeting window of that day (a stretch that
+ * does is the meeting's own crowd, arrivals before the start included). Stretches less than
+ * EVENT_MERGE_GAP_MIN apart count as one. With several remaining stretches
+ * the one with the highest peak wins (then the longest). $windows = [[window_start, window_end], ...]
+ * as naive UTC strings. Returns [started_at, ended_at, peak, peak_at].
+ */
+function event_stretch(array $entries, string $day, array $windows): ?array
 {
-    $first = $last = $peak = $peakAt = null;
+    $stretches = [];
+    $cur = null;
     foreach ($entries as $e) {
-        if ($e['day'] === $day && (int)$e['balance'] > EVENT_THRESHOLD) {
-            $first ??= $e['timestamp'];
-            $last = $e['timestamp'];
-            if ($peak === null || (int)$e['balance'] > $peak) {
-                $peak = (int)$e['balance'];
-                $peakAt = $e['timestamp'];
+        if ($e['day'] !== $day) {
+            continue;
+        }
+        if ((int)$e['balance'] > EVENT_THRESHOLD) {
+            $cur ??= ['first' => $e['timestamp'], 'last' => $e['timestamp'], 'peak' => 0, 'peakAt' => $e['timestamp']];
+            $cur['last'] = $e['timestamp'];
+            if ((int)$e['balance'] > $cur['peak']) {
+                $cur['peak'] = (int)$e['balance'];
+                $cur['peakAt'] = $e['timestamp'];
             }
+        } elseif ($cur) {
+            $stretches[] = $cur;
+            $cur = null;
         }
     }
+    if ($cur) {
+        $stretches[] = $cur;
+    }
+
+    $merged = [];
+    foreach ($stretches as $st) {
+        $prev = end($merged);
+        if ($prev && parse_ts($st['first'])->getTimestamp() - parse_ts($prev['last'])->getTimestamp() <= EVENT_MERGE_GAP_MIN * 60) {
+            $k = array_key_last($merged);
+            $merged[$k]['last'] = $st['last'];
+            if ($st['peak'] > $prev['peak']) {
+                $merged[$k]['peak'] = $st['peak'];
+                $merged[$k]['peakAt'] = $st['peakAt'];
+            }
+        } else {
+            $merged[] = $st;
+        }
+    }
+    $stretches = $merged;
+
+    $best = null;
+    foreach ($stretches as $st) {
+        foreach ($windows as [$ws, $we]) {
+            if (parse_ts($ws) <= parse_ts($st['last']) && parse_ts($we) >= parse_ts($st['first'])) {
+                continue 2;
+            }
+        }
+        $len = parse_ts($st['last'])->getTimestamp() - parse_ts($st['first'])->getTimestamp();
+        if (!$best || $st['peak'] > $best['peak'] || ($st['peak'] === $best['peak'] && $len > $best['len'])) {
+            $best = $st + ['len' => $len];
+        }
+    }
+    return $best ? [$best['first'], $best['last'], $best['peak'], $best['peakAt']] : null;
+}
+
+function snapshot_event($con, string $day, DateTimeImmutable $dayStart, array $entries, DateTimeImmutable $now, DateInterval $grace, array $windows = []): void
+{
+    [$first, $last, $peak, $peakAt] = event_stretch($entries, $day, $windows) ?? [null, null, null, null];
 
     // A row without a peak means "looked, no event"; it is saved so a past day is not re-examined.
     $frozen = $now > $dayStart->modify('+1 day')->add($grace);
@@ -395,6 +452,12 @@ function week_view($con, DateTimeImmutable $now, string $sunday, array $services
     foreach ($events as $day => $e) {
         if ($e['peak'] === null) {
             continue;
+        }
+        // A meeting added after the event was recorded covers it: keep the row, show only the meeting.
+        foreach ($services as $s) {
+            if ($s['day'] === $day && $s['window_start'] <= $e['ended_at'] && $s['window_end'] >= $e['started_at']) {
+                continue 2;
+            }
         }
         $days[$day]['event'] = [
             'start' => iso($e['started_at']),

@@ -29,9 +29,12 @@ Clean URLs are Apache rewrite rules in the vhost (`deploy/apache/`). `sql/`, `sr
    building is empty; effective from the first reading stamped after the click; can be undone), and on the first day
    in the data it starts at `OPENING_BALANCE` (`src/balance.php`).
 4. A meeting's count is the peak balance in its window (start to start + duration, default 2 h). On days
-   without meetings, more than 5 people inside makes an "event". Results are saved in `service_snapshots`
-   / `event_snapshots`, updated while running and frozen 10 minutes after the window ends
-   (`src/services.php`). The database and code call meetings "services"; the interface says "reuniões".
+   without meetings, more than 5 people inside makes an "event": a stretch of readings above 5 (dips of
+   up to 15 minutes do not split it) that does not touch any meeting window of that day; a stretch that
+   does, such as early arrivals who stay for the meeting, is the meeting's own crowd. One event per day (the
+   stretch with the highest peak). Results are saved in `service_snapshots` / `event_snapshots`, updated
+   while running and frozen 10 minutes after the window ends (`src/services.php`, `event_stretch()`;
+   tests: `php tests/services_event_test.php`). The database and code call meetings "services"; the interface says "reuniões".
 
 ## Meeting report (info button on each card)
 
@@ -152,7 +155,7 @@ they all use `Persistent=true` (a run missed while the server was down happens a
 | Timer | When | What it does |
 |---|---|---|
 | `rift-monitor` | every 60 s, root | Emails `root@altair.dannyps.net` (Roundcube folder `altair.dannyps.net`) when no reading was received for 10 min (with the last rejected requests from `ingest.log`, or the database error), or when the Planning Center sync has not succeeded for 6 h (with its last error); repeats every 6 h and sends a "recovered" mail. State in `/var/lib/rift-monitor/`. Read-only. |
-| `rift-snapshot` | every 5 min, www-data | `snapshot.php`: for the current and previous week, saves each started meeting's peak balance, arrivals/late share and devotional head-count, marks it partial if the counter began late, and freezes it 10 min after the window ends; saves the exit speeds after 13:00/19:00; saves the event (balance over 5) of days without a meeting and freezes it after the day. Never touches frozen rows or manual corrections. Loading `/reunioes` does the same on demand. |
+| `rift-snapshot` | every 5 min, www-data | `snapshot.php`: for the current and previous week, saves each started meeting's peak balance, arrivals/late share and devotional head-count, marks it partial if the counter began late, and freezes it 10 min after the window ends; saves the exit speeds after 13:00/19:00; saves the day's event (a stretch with balance over 5 outside every meeting window) and freezes it after the day. Never touches frozen rows or manual corrections. Loading `/reunioes` does the same on demand. |
 | `rift-pco-sync` | every 30 min (+≤60 s), www-data | `pco_sync.php` under a lock: reads the Porto and Young Adults & Youth folders (no Kids), the plans and their service times, the people of plans from yesterday to +21 days, saves them, deletes vanished future plans, and creates/updates/removes the Planning Center special days (manual ones win; past rows and a meeting already started are never removed). About 100 API calls, ~1 min; on a Planning Center error it records the error and changes nothing. |
 | `rift-postgres-backup` | 03:45 (+≤10 min), root | `pg_dump -Fc` of the `rift` database to `rift-postgres/backups/rift-YYYYMMDD-HHMM.dump` (mode 600), kept only if `pg_restore --list` can read it; keeps the newest 14 plus every Sunday one for 8 weeks. Same disk as the database: no off-host copy. A failure fails the unit but sends no email. |
 
