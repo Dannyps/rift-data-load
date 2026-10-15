@@ -70,14 +70,19 @@ The year chart starts on 11 Oct 2026, the first day of counter data.
 
 ## Admin area (`/admin`)
 
-A login form (`admin.php`, `src/auth.php`; pages in Portuguese). Accounts are in `admin_users`; the only
-privilege is **can manage users**. Everyone can edit weekly meetings, special days and corrections, and
-change their own password; users with the privilege also add and remove users, reset passwords and grant
-or withdraw the privilege (there must always be at least one such user, and you can't remove yourself).
+A login form (`admin.php`, `src/auth.php`; pages in Portuguese). Accounts are in `admin_users` and have a **role**:
+
+- `admin` (Administrador): every admin page. Admins can also hold the **can manage users** privilege: they add and
+  remove users, change roles, reset passwords and grant or withdraw the privilege (there must always be at least one
+  such user, and you can't remove or re-role yourself).
+- `reporter` (Só relatórios): can only save meeting reports (the dialog on each card of `/reunioes`, which saves when
+  logged in) and change their own password. They land on `/reunioes` after logging in; every other `/admin` page and
+  `/admin/api/stats` answer 403. A reporter can't manage users (also enforced by a CHECK constraint).
+
 Every change is written to the audit log (`/admin/registo`).
 
-Pages: Reuniões (weekly meetings), Dias especiais (+ Planning Center sync status), Pessoas, Correções, Contadores
-(manual balance reset), Utilizadores, Palavra-passe, Registo.
+Pages (admins): Reuniões (weekly meetings), Dias especiais (+ Planning Center sync status), Pessoas, Correções, Contadores
+(manual balance reset), Estatísticas, Utilizadores (one card per user, edit section collapsed), Palavra-passe, Registo.
 
 - Passwords: argon2id, at least 10 characters. An Apache `$apr1$` hash imported from `.htpasswd` works once and
   is upgraded at the first login. Five failed attempts per user (30 per IP) lock logins for 15 minutes.
@@ -89,7 +94,7 @@ Pages: Reuniões (weekly meetings), Dias especiais (+ Planning Center sync statu
 - Session cookie: Secure, HttpOnly, SameSite=Strict, limited to `/admin`, 8 h idle timeout; every POST needs a
   CSRF token; a strict CSP (no inline scripts or styles).
 - First users: `php admin_user.php import-htpasswd dannyps --manage` (reuses the `/internal` password),
-  `php admin_user.php create USER [--manage]`, `php admin_user.php list`.
+  `php admin_user.php create USER [--manage | --reporter]`, `php admin_user.php list`.
 
 ## Planning Center (people and special days)
 

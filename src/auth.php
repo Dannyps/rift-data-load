@@ -1,13 +1,15 @@
 <?php
 
-// Admin accounts, login and sessions. Accounts live in admin_users; the only privilege is
-// can_manage_users. Sessions are PHP sessions limited to /admin, every POST carries a CSRF token.
+// Admin accounts, login and sessions. Accounts live in admin_users: a role ('admin' = every page,
+// 'reporter' = only saves meeting reports and changes its own password) and, for admins, the
+// can_manage_users privilege. Sessions are PHP sessions limited to /admin, every POST carries a CSRF token.
 
 const SESSION_NAME = 'rift_admin';
 const IDLE_TIMEOUT = 8 * 3600;
 const MAX_FAILURES_PER_USER = 5;
 const MAX_FAILURES_PER_IP = 30;
 const MIN_PASSWORD_LENGTH = 10;
+const ROLES = ['admin' => 'Administrador', 'reporter' => 'Só relatórios'];
 
 /** Apache's MD5-based $apr1$ hash (what htpasswd writes by default). */
 function apr1_md5(string $password, string $salt): string
@@ -84,7 +86,7 @@ function current_user($con): ?array
         unset($_SESSION['user_id']);
         return null;
     }
-    $res = pg_query_params($con, 'SELECT id, username, can_manage_users FROM admin_users WHERE id = $1', [$_SESSION['user_id']]);
+    $res = pg_query_params($con, 'SELECT id, username, role, can_manage_users FROM admin_users WHERE id = $1', [$_SESSION['user_id']]);
     $user = pg_fetch_assoc($res) ?: null;
     if (!$user) {
         unset($_SESSION['user_id']);
@@ -93,6 +95,17 @@ function current_user($con): ?array
     $_SESSION['seen'] = time();
     $user['can_manage_users'] = $user['can_manage_users'] === 't';
     return $user;
+}
+
+function is_admin(array $user): bool
+{
+    return $user['role'] === 'admin';
+}
+
+/** Where a freshly logged-in user lands: admins in the admin area, reporters on the meetings page they report from. */
+function home_for(array $user): string
+{
+    return is_admin($user) ? '/admin/reunioes' : '/reunioes';
 }
 
 function login_locked($con, string $username): bool

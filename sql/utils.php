@@ -56,6 +56,8 @@ function ensure_schema_is_valid($con)
         AND to_regclass('admin_audit') IS NOT NULL
         AND to_regclass('admin_login_failures') IS NOT NULL
         AND EXISTS (SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'admin_users' AND column_name = 'role')
+        AND EXISTS (SELECT 1 FROM information_schema.columns
                     WHERE table_name = 'event_snapshots' AND column_name = 'correction_note')
         AND EXISTS (SELECT 1 FROM information_schema.columns
                     WHERE table_name = 'records' AND column_name = 'received_at')

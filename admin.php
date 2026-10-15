@@ -2,7 +2,8 @@
 
 // Admin area, served under /admin/... (Apache rewrites everything there to this script).
 // Pages: reunioes (weekly meetings), dias-especiais, correcoes (fix counts), utilizadores (only for
-// users who can manage users), palavra-passe (own password), registo (audit log).
+// users who can manage users), palavra-passe (own password), registo (audit log). Accounts with the
+// 'reporter' role only reach palavra-passe and the report API.
 
 require(__DIR__ . "/sql/utils.php");
 require(__DIR__ . "/src/auth.php");
@@ -31,7 +32,7 @@ if (str_starts_with($route, '/api/')) {
     };
 
     if ($route === '/api/me') {
-        $out($apiUser ? ['loggedIn' => true, 'user' => $apiUser['username'], 'csrf' => csrf_token()] : ['loggedIn' => false]);
+        $out($apiUser ? ['loggedIn' => true, 'user' => $apiUser['username'], 'role' => $apiUser['role'], 'csrf' => csrf_token()] : ['loggedIn' => false]);
     }
     if (!$apiUser) {
         $out(['error' => 'login'], 401);
@@ -59,6 +60,9 @@ if (str_starts_with($route, '/api/')) {
     }
 
     if ($route === '/api/stats') {
+        if (!is_admin($apiUser)) {
+            $out(['error' => 'forbidden'], 403);
+        }
         $part = (string)($_GET['part'] ?? 'week');
         if ($part === 'week') {
             $d = (string)($_GET['week'] ?? '');
@@ -87,8 +91,8 @@ if (str_starts_with($route, '/api/')) {
 // ---------------------------------------------------------------- login / logout
 
 if ($route === '/entrar') {
-    if (current_user($con)) {
-        redirect('/admin/reunioes');
+    if ($already = current_user($con)) {
+        redirect(home_for($already));
     }
     $error = null;
     if ($isPost) {
@@ -97,8 +101,10 @@ if ($route === '/entrar') {
         } else {
             $error = attempt_login($con, (string)($_POST['username'] ?? ''), (string)($_POST['password'] ?? ''));
             if ($error === null) {
-                audit($con, strtolower(trim($_POST['username'])), 'login');
-                redirect('/admin/reunioes');
+                $name = strtolower(trim($_POST['username']));
+                audit($con, $name, 'login');
+                $role = pg_fetch_result(pg_query_params($con, 'SELECT role FROM admin_users WHERE username = $1', [$name]), 0, 0);
+                redirect(home_for(['role' => $role]));
             }
         }
     }
@@ -126,6 +132,15 @@ if ($route === '/sair' && $isPost) {
     audit($con, $user['username'], 'logout');
     logout();
     redirect('/admin/entrar');
+}
+
+// A reporter only saves meeting reports (through the API above) and changes its own password.
+if (!is_admin($user) && $route !== '/palavra-passe') {
+    if ($route === '/' || $route === '') {
+        redirect('/reunioes');
+    }
+    http_response_code(403);
+    page('Sem permissão', '<p>Esta conta só pode guardar relatórios das reuniões (no botão de cada reunião em <a href="/reunioes">/reunioes</a>) e alterar a própria palavra-passe.</p>', $user);
 }
 
 // ---------------------------------------------------------------- helpers
@@ -615,24 +630,38 @@ if ($route === '/utilizadores') {
             } elseif (rows($con, 'SELECT 1 FROM admin_users WHERE username = $1', [$username])) {
                 flash('error', 'Esse nome de utilizador já existe.');
             } else {
-                $manage = isset($_POST['can_manage_users']);
-                pg_query_params($con, 'INSERT INTO admin_users (username, password_hash, can_manage_users) VALUES ($1, $2, $3)', [$username, hash_password($pw), $manage ? 't' : 'f']);
-                audit($con, $user['username'], 'utilizador.criar', $username . ($manage ? ' (pode gerir utilizadores)' : ''));
+                $role = ($_POST['role'] ?? 'admin') === 'reporter' ? 'reporter' : 'admin';
+                $manage = $role === 'admin' && isset($_POST['can_manage_users']);
+                pg_query_params($con, 'INSERT INTO admin_users (username, password_hash, role, can_manage_users) VALUES ($1, $2, $3, $4)', [$username, hash_password($pw), $role, $manage ? 't' : 'f']);
+                audit($con, $user['username'], 'utilizador.criar', $username . ' (' . ROLES[$role] . ')' . ($manage ? ' (pode gerir utilizadores)' : ''));
                 flash('ok', "Utilizador $username criado.");
             }
             back();
         }
 
-        $target = pg_fetch_assoc(pg_query_params($con, 'SELECT id, username, can_manage_users FROM admin_users WHERE id = $1', [(int)($_POST['id'] ?? 0)]));
+        $target = pg_fetch_assoc(pg_query_params($con, 'SELECT id, username, role, can_manage_users FROM admin_users WHERE id = $1', [(int)($_POST['id'] ?? 0)]));
         if (!$target) {
             flash('error', 'Utilizador não encontrado.');
             back();
         }
         $targetManages = $target['can_manage_users'] === 't';
 
-        if ($act === 'set_manage') {
+        if ($act === 'set_role') {
+            $role = ($_POST['role'] ?? '') === 'reporter' ? 'reporter' : 'admin';
+            if ((int)$target['id'] === (int)$user['id']) {
+                flash('error', 'Não pode alterar o seu próprio perfil.');
+            } elseif ($role === 'reporter' && $targetManages) {
+                flash('error', 'Retire primeiro a permissão de gerir utilizadores a ' . $target['username'] . '.');
+            } elseif ($role !== $target['role']) {
+                pg_query_params($con, 'UPDATE admin_users SET role = $1 WHERE id = $2', [$role, $target['id']]);
+                audit($con, $user['username'], 'utilizador.perfil', $target['username'] . ': ' . ROLES[$role]);
+                flash('ok', 'Perfil de ' . $target['username'] . ': ' . ROLES[$role] . '.');
+            }
+        } elseif ($act === 'set_manage') {
             $want = ($_POST['value'] ?? '') === '1';
-            if (!$want && $targetManages && $managers <= 1) {
+            if ($want && $target['role'] !== 'admin') {
+                flash('error', 'Só um administrador pode gerir utilizadores.');
+            } elseif (!$want && $targetManages && $managers <= 1) {
                 flash('error', 'Tem de existir pelo menos um utilizador que possa gerir utilizadores.');
             } else {
                 pg_query_params($con, 'UPDATE admin_users SET can_manage_users = $1 WHERE id = $2', [$want ? 't' : 'f', $target['id']]);
@@ -664,28 +693,49 @@ if ($route === '/utilizadores') {
         back();
     }
 
-    $body = '<p class="hint">Todos os utilizadores podem alterar reuniões, dias especiais e correções. Só quem tem a permissão «gerir utilizadores» vê esta página. As palavras-passe têm pelo menos ' . MIN_PASSWORD_LENGTH . ' caracteres.</p>
-      <h3>Adicionar utilizador</h3><form method="post" class="card">' . csrf_field() . '<input type="hidden" name="action" value="add"><div class="row">
-        <div><label for="u">Utilizador</label><input type="text" id="u" name="username" maxlength="32" autocomplete="off" required></div>
-        <div><label for="p1">Palavra-passe</label><input type="password" id="p1" name="password" autocomplete="new-password" required></div>
-        <div><label for="p2">Repetir palavra-passe</label><input type="password" id="p2" name="password2" autocomplete="new-password" required></div>
-        <div><label class="check"><input type="checkbox" name="can_manage_users" value="1"> Pode gerir utilizadores</label></div>
-        <div><button class="primary">Criar</button></div></div></form>
-      <h3>Utilizadores</h3><div class="tablewrap"><table class="admin"><thead><tr><th>Utilizador</th><th>Gerir utilizadores</th><th>Último acesso</th><th>Nova palavra-passe</th><th></th></tr></thead><tbody>';
+    $roleOptions = fn(string $sel) => implode('', array_map(fn($k, $v) => '<option value="' . $k . '"' . ($k === $sel ? ' selected' : '') . '>' . h($v) . '</option>', array_keys(ROLES), ROLES));
+    $hidden = fn(array $u, string $action) => csrf_field() . '<input type="hidden" name="id" value="' . h($u['id']) . '"><input type="hidden" name="action" value="' . $action . '">';
+
+    $body = '<dl class="roles"><div><dt>Administrador</dt><dd>Reuniões, dias especiais, pessoas, correções, contadores e estatísticas.</dd></div>'
+        . '<div><dt>Só relatórios</dt><dd>Guarda os relatórios das reuniões (no botão de cada reunião em /reunioes) e altera a própria palavra-passe.</dd></div></dl>'
+        . '<h3>Utilizadores</h3><div class="users">';
     foreach (rows($con, 'SELECT * FROM admin_users ORDER BY username') as $u) {
         $isSelf = (int)$u['id'] === (int)$user['id'];
+        $isAdmin = $u['role'] === 'admin';
         $manages = $u['can_manage_users'] === 't';
-        $f = 'p' . $u['id'];
-        $body .= '<tr><td>' . h($u['username']) . ($isSelf ? ' <span class="tag">você</span>' : '') . '</td>'
-            . '<td><form method="post" class="inline">' . csrf_field() . '<input type="hidden" name="id" value="' . h($u['id']) . '"><input type="hidden" name="action" value="set_manage">'
-            . '<input type="hidden" name="value" value="' . ($manages ? '0' : '1') . '">' . ($manages ? 'Sim' : 'Não') . ' <button>' . ($manages ? 'Retirar' : 'Conceder') . '</button></form></td>'
-            . '<td>' . h(fmt_local($u['last_login'])) . '</td>'
-            . '<td><form method="post" id="' . $f . '" class="inline">' . csrf_field() . '<input type="hidden" name="id" value="' . h($u['id']) . '"><input type="hidden" name="action" value="reset_password">'
-            . '<input type="password" name="password" placeholder="Nova" autocomplete="new-password" aria-label="Nova palavra-passe" required>'
-            . '<input type="password" name="password2" placeholder="Repetir" autocomplete="new-password" aria-label="Repetir palavra-passe" required><button>Alterar</button></form></td>'
-            . '<td>' . ($isSelf ? '' : '<form method="post" data-confirm="Remover o utilizador ' . h($u['username']) . '?">' . csrf_field() . '<input type="hidden" name="id" value="' . h($u['id']) . '"><button name="action" value="delete" class="danger">Remover</button></form>') . '</td></tr>';
+        $name = h($u['username']);
+        $body .= '<article class="user card"><div class="user-head"><div class="user-id"><strong>' . $name . '</strong>' . ($isSelf ? ' <span class="tag">você</span>' : '')
+            . '<div class="user-seen">Último acesso: ' . h(fmt_local($u['last_login'])) . '</div></div>'
+            . '<div class="pills"><span class="pill ' . ($isAdmin ? 'admin' : 'reporter') . '">' . h(ROLES[$u['role']]) . '</span>'
+            . ($manages ? '<span class="pill manage">Gere utilizadores</span>' : '') . '</div></div>'
+            . '<details class="user-edit"><summary>Editar</summary><div class="user-forms">';
+        if (!$isSelf) {
+            $body .= '<form method="post" class="field-form">' . $hidden($u, 'set_role')
+                . '<label for="role' . $u['id'] . '">Perfil</label><div class="field-row"><select id="role' . $u['id'] . '" name="role">' . $roleOptions($u['role']) . '</select><button>Guardar</button></div></form>';
+        }
+        if ($isAdmin) {
+            $body .= '<form method="post" class="field-form">' . $hidden($u, 'set_manage') . '<input type="hidden" name="value" value="' . ($manages ? '0' : '1') . '">'
+                . '<label>Gerir utilizadores</label><div class="field-row"><span class="state">' . ($manages ? 'Sim' : 'Não') . '</span><button>' . ($manages ? 'Retirar' : 'Conceder') . '</button></div></form>';
+        }
+        $body .= '<form method="post" class="field-form pw">' . $hidden($u, 'reset_password')
+            . '<label for="pw' . $u['id'] . '">Nova palavra-passe</label><div class="field-row"><input type="password" id="pw' . $u['id'] . '" name="password" placeholder="Nova" autocomplete="new-password" required>'
+            . '<input type="password" name="password2" placeholder="Repetir" autocomplete="new-password" aria-label="Repetir a nova palavra-passe" required><button>Alterar</button></div></form>';
+        if (!$isSelf) {
+            $body .= '<form method="post" class="field-form remove" data-confirm="Remover o utilizador ' . $name . '?">' . csrf_field() . '<input type="hidden" name="id" value="' . h($u['id']) . '">'
+                . '<button name="action" value="delete" class="danger">Remover utilizador</button></form>';
+        }
+        $body .= '</div></details></article>';
     }
-    $body .= '</tbody></table></div>';
+    $body .= '</div><h3>Adicionar utilizador</h3><form method="post" class="card add-user" id="adduser">' . csrf_field() . '<input type="hidden" name="action" value="add">
+        <div class="add-grid">
+          <div><label for="u">Utilizador</label><input type="text" id="u" name="username" maxlength="32" autocomplete="off" required></div>
+          <div><label for="r">Perfil</label><select id="r" name="role">' . $roleOptions('reporter') . '</select></div>
+          <div><label for="p1">Palavra-passe</label><input type="password" id="p1" name="password" autocomplete="new-password" required></div>
+          <div><label for="p2">Repetir palavra-passe</label><input type="password" id="p2" name="password2" autocomplete="new-password" required></div>
+        </div>
+        <label class="check" id="managewrap"><input type="checkbox" name="can_manage_users" value="1"> Pode gerir utilizadores</label>
+        <p class="hint">Nome com 3 a 32 caracteres (letras minúsculas, números, ponto, hífen ou sublinhado); palavra-passe com pelo menos ' . MIN_PASSWORD_LENGTH . ' caracteres.</p>
+        <p><button class="primary">Criar utilizador</button></p></form>';
     page('Utilizadores', $body, $user, 'utilizadores');
 }
 

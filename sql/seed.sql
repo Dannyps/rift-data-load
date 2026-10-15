@@ -131,7 +131,7 @@ SELECT 'Reunião das ' || to_char(t, 'HH24:MI'), 0, t
 FROM (VALUES (time '09:30'), (time '11:30'), (time '17:30')) v(t)
 WHERE NOT EXISTS (SELECT 1 FROM services);
 
--- Admin accounts. The only privilege is can_manage_users. password_hash is argon2id; a legacy
+-- Admin accounts (role, plus the can_manage_users privilege). password_hash is argon2id; a legacy
 -- Apache '$apr1$' hash (imported from .htpasswd) is accepted once and replaced at the first login.
 CREATE TABLE IF NOT EXISTS admin_users (
     id serial PRIMARY KEY,
@@ -141,6 +141,15 @@ CREATE TABLE IF NOT EXISTS admin_users (
     created_at timestamptz NOT NULL DEFAULT now(),
     last_login timestamptz
 );
+
+-- 'admin' can use every admin page; 'reporter' can only save meeting reports (the dialog on /reunioes)
+-- and change its own password. Only an admin can manage users.
+ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS role text NOT NULL DEFAULT 'admin';
+DO $$ BEGIN
+    ALTER TABLE admin_users ADD CONSTRAINT admin_users_role_check
+        CHECK (role IN ('admin', 'reporter') AND (role = 'admin' OR NOT can_manage_users));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS admin_login_failures (
     at timestamptz NOT NULL DEFAULT now(),

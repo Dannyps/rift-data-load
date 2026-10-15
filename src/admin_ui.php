@@ -46,12 +46,16 @@ function page(string $title, string $body, ?array $user, string $active = '', ar
 
     $nav = $toggle = '';
     if ($user) {
-        $items = ['reunioes' => 'Reuniões', 'dias-especiais' => 'Dias especiais', 'pessoas' => 'Pessoas', 'correcoes' => 'Correções', 'contadores' => 'Contadores', 'estatisticas' => 'Estatísticas'];
+        $items = is_admin($user)
+            ? ['reunioes' => 'Reuniões', 'dias-especiais' => 'Dias especiais', 'pessoas' => 'Pessoas', 'correcoes' => 'Correções', 'contadores' => 'Contadores', 'estatisticas' => 'Estatísticas']
+            : [];
         if ($user['can_manage_users']) {
             $items['utilizadores'] = 'Utilizadores';
         }
         $items['palavra-passe'] = 'Palavra-passe';
-        $items['registo'] = 'Registo';
+        if (is_admin($user)) {
+            $items['registo'] = 'Registo';
+        }
         // Top bar on wide screens; on phones the same nav is a slide-in sidebar opened by the menu button.
         $nav = '<nav class="nav" id="adminnav" aria-label="Administração">';
         foreach ($items as $slug => $label) {

@@ -164,3 +164,35 @@ details.card[open] summary { margin-bottom: 8px; }
   .s-tw { overflow-x: visible; }
   table.s-table.stack tr { background: var(--surface-1); }
 }
+
+/* ---- users page ---- */
+.roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px 24px; margin: 4px 0 8px; font-size: 13px; }
+.roles > div { min-width: 0; }
+.roles dt { font-weight: 600; font-size: 13px; }
+.roles dd { margin: 2px 0 0; color: var(--text-secondary); }
+.users { display: grid; gap: 10px; }
+.user.card { margin: 0; padding: 12px 16px; }
+.user-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; }
+.user-id { min-width: 0; }
+.user-id strong { font-size: 15px; overflow-wrap: anywhere; }
+.user-seen { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill { font-size: 12px; border-radius: 10px; padding: 2px 10px; background: var(--surface-1); color: var(--text-secondary); border: 1px solid var(--grid); }
+.pill.admin { color: var(--text-primary); }
+.pill.manage { border-color: var(--series-bal); }
+.user-edit { margin-top: 8px; }
+.user-edit summary { cursor: pointer; font-size: 13px; color: var(--text-secondary); width: fit-content; padding: 4px 0; }
+.user-edit[open] summary { margin-bottom: 6px; }
+.user-forms { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 24px; padding-top: 10px; border-top: 1px solid var(--grid); }
+.field-form { margin: 0; min-width: 0; }
+.field-form label { margin-top: 0; }
+.field-row { display: flex; gap: 8px; align-items: center; }
+.field-row > input, .field-row > select { flex: 1 1 0; min-width: 0; width: auto; }
+.field-row .state { flex: 0 0 auto; min-width: 3.5em; font-size: 14px; }
+.field-form.pw { grid-column: 1 / -1; max-width: 520px; }
+.field-form.remove { grid-column: 1 / -1; }
+.add-user { max-width: 640px; }
+.add-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 4px 16px; }
+.add-user label.check { margin: 12px 0 0; }
+.add-user label.check[hidden] { display: none; }
+.add-user .hint { margin-top: 12px; }

@@ -63,3 +63,17 @@ document.addEventListener('submit', function (e) {
   };
   window.stackTables();
 })();
+
+// New user form: only an administrator can be allowed to manage users.
+(function () {
+  var role = document.querySelector('#adduser select[name=role]');
+  var wrap = document.getElementById('managewrap');
+  if (!role || !wrap) return;
+  function sync() {
+    var admin = role.value === 'admin';
+    wrap.hidden = !admin;
+    if (!admin) wrap.querySelector('input').checked = false;
+  }
+  role.addEventListener('change', sync);
+  sync();
+})();
