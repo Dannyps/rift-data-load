@@ -1,0 +1,34 @@
+<IfModule mod_ssl.c>
+<VirtualHost *:443>
+    ServerName @DOMAIN@
+    DocumentRoot @APP_DIR@
+
+    # The document root is a git repository: never serve its metadata or internals.
+    RedirectMatch 404 "/\.(git|github)(/|$)"
+    RedirectMatch 404 "^/(sql|src|README\.md|load_files\.php|snapshot\.php|special_day\.php|admin_user\.php|pco_sync\.php|tests|[^/]*\.(priv|ini))"
+
+    # Clean URLs: no .php/.html in anything we link to. Redirects first (mod_rewrite runs the rules in
+    # order), then the internal mappings. The device keeps posting to /load_from_request.php.
+    RewriteEngine On
+    RewriteRule ^/index\.html$ / [R=301,L]
+    RewriteRule ^/(?:reunioes|services)\.html$ /reunioes [R=301,L]
+    RewriteRule ^/reunioes/?$ /reunioes.html [L]
+    RewriteRule ^/api/chart$ /api.php [L]
+    RewriteRule ^/api/services$ /services.php [L]
+    RewriteRule ^/admin(/.*)?$ /admin.php [L,QSA]
+
+    <Directory @APP_DIR@>
+        Options -Indexes
+        AllowOverride None
+
+        Require all granted
+    </Directory>
+
+    ErrorLog ${APACHE_LOG_DIR}/rift_error.log
+    CustomLog ${APACHE_LOG_DIR}/rift_access.log combined
+
+SSLCertificateFile /etc/letsencrypt/live/@DOMAIN@/fullchain.pem
+SSLCertificateKeyFile /etc/letsencrypt/live/@DOMAIN@/privkey.pem
+Include /etc/letsencrypt/options-ssl-apache.conf
+</VirtualHost>
+</IfModule>

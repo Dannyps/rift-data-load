@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
+<title>Reuniões · Contador de pessoas RIFT</title>
+<link rel="stylesheet" href="assets/common.css">
+<style>
+  .weekbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin: 20px 0 4px; }
+  .weekbar .label { font-weight: 600; }
+  .weekbar .buttons { display: flex; gap: 4px; }
+  .day { margin-top: 24px; }
+  .day h2 { font-size: 15px; font-weight: 600; margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+  .dayname { display: inline-block; }
+  .dayname::first-letter { text-transform: uppercase; }
+  .badge { font-size: 11px; font-weight: 500; text-transform: none; color: var(--text-secondary); background: var(--surface-2); border-radius: 10px; padding: 1px 8px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .card { background: var(--surface-2); border-radius: 8px; padding: 12px 16px; display: flex; flex-direction: column; gap: 2px; }
+  .card .title { font-size: 13px; color: var(--text-secondary); display: flex; justify-content: space-between; gap: 8px; }
+  .card .time { font-variant-numeric: tabular-nums; }
+  .card .count { font-size: 40px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .card .count.unknown { font-size: 22px; font-weight: 500; color: var(--text-muted); line-height: 2; }
+  .card .state { font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+  .card .note { font-size: 12px; color: var(--text-muted); }
+  .people { margin: 10px 0 0; padding-top: 8px; border-top: 1px solid var(--grid); display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 13px; }
+  .people dt { color: var(--text-muted); }
+  .people dd { margin: 0; color: var(--text-primary); overflow-wrap: anywhere; }
+  .people dd.tbd { color: var(--text-muted); font-style: italic; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--series-bal); display: inline-block; animation: pulse 2s ease-in-out infinite; }
+  .card.event { border-left: 3px solid var(--series-out); }
+  @keyframes pulse { 50% { opacity: .35; } }
+  @media (prefers-reduced-motion: reduce) { .dot { animation: none; } }
+  .card { position: relative; }
+  .card .title { padding-right: 44px; }
+  .info-btn { position: absolute; top: 6px; right: 6px; width: 36px; height: 36px; padding: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+    color: var(--text-secondary); background: var(--surface-1); }
+  .info-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+  .info-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
+  .info-btn:disabled { opacity: .35; cursor: not-allowed; }
+  .info-btn:disabled:hover { color: var(--text-secondary); border-color: var(--grid); }
+  dialog#report { width: min(600px, calc(100vw - 24px)); max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); padding: 0; border: 1px solid var(--grid); border-radius: 12px; background: var(--surface-1); color: var(--text-primary); overflow: hidden; }
+  /* Phones: pin the dialog to the VISIBLE viewport (JS keeps --vvh/--vvtop in sync with visualViewport), so the
+     on-screen keyboard never covers the focused field or the buttons; the body scrolls inside. */
+  @media (max-width: 720px) {
+    dialog#report { position: fixed; inset: auto; left: 8px; right: 8px; width: auto; margin: 0; top: calc(var(--vvtop, 0px) + 8px); max-height: calc(var(--vvh, 100dvh) - 16px); }
+  }
+  dialog#report::backdrop { background: rgba(0, 0, 0, .5); }
+  dialog#report[open] { display: flex; flex-direction: column; }
+  .dlg-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 16px 8px 20px; }
+  .dlg-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
+  .dlg-head .sub { margin-top: 2px; }
+  .dlg-close { width: 36px; height: 36px; padding: 0; border-radius: 50%; flex: none; }
+  .dlg-body { padding: 4px 20px 20px; overflow-y: auto; }
+  .dlg-body fieldset { border: 0; padding: 0; margin: 12px 0 0; min-width: 0; }
+  .dlg-body legend { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; padding: 0; }
+  .field { margin-top: 10px; }
+  .field label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 3px; }
+  .field input { font: inherit; width: 100%; color: var(--text-primary); background: var(--surface-2); border: 1px solid var(--grid); border-radius: 6px; padding: 8px 10px; }
+  .field input[aria-invalid="true"] { border-color: var(--series-out); }
+  .field input:focus-visible, #reportText:focus-visible { outline: 2px solid var(--series-in); outline-offset: 1px; }
+  .field .hint { font-size: 12px; color: var(--text-muted); margin: -1px 0 4px; }
+  .field .err { color: var(--series-out); font-size: 12px; margin-top: 2px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  @media (max-width: 520px) { .grid2 { grid-template-columns: 1fr; } }
+  .dlg-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 16px; }
+  button.primary { background: var(--text-primary); color: var(--surface-1); border-color: var(--text-primary); }
+  #reportOut { margin-top: 18px; }
+  #reportText { width: 100%; min-height: 6em; font: 14px/1.5 system-ui, sans-serif; color: var(--text-primary); background: var(--surface-2); border: 1px solid var(--grid); border-radius: 6px; padding: 10px; resize: vertical; }
+  .form-error { color: var(--series-out); font-size: 13px; margin-top: 10px; }
+  .empty { padding: 48px 0; text-align: center; color: var(--text-muted); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Contador de pessoas RIFT</h1>
+    <div class="sub" id="status">A carregar…</div>
+  </header>
+  <nav class="nav" aria-label="Páginas"><a href="/reunioes" aria-current="page">Reuniões</a><a href="/">Gráficos</a></nav>
+
+  <div class="weekbar">
+    <div class="label" id="weeklabel"></div>
+    <div class="buttons">
+      <button id="prev" aria-label="Semana anterior">◀ Anterior</button>
+      <button id="current">Esta semana</button>
+      <button id="next" aria-label="Semana seguinte">Seguinte ▶</button>
+    </div>
+  </div>
+
+  <div id="days"></div>
+
+  <footer>
+    <p><b>O que significam os valores.</b> Cada cartão de reunião mostra o número máximo de pessoas dentro do edifício
+      durante a reunião, desde a hora de início até ao fim da sua duração (normalmente duas horas). Antes de a reunião
+      começar o valor é <i>desconhecido</i>; durante a reunião vai subindo até ao máximo, e no fim fica guardado.</p>
+    <p>Em dias sem reunião, quando há mais de 5 pessoas dentro aparece um cartão de <i>evento</i>, com a hora a que
+      passou das 5 pessoas, a hora a que deixou de haver e o máximo atingido. Os dias especiais substituem as reuniões
+      habituais da sua data.</p>
+    <p>Os nomes (MC, oferta, líder de louvor e pregador) vêm do Planning Center e podem ser corrigidos por um administrador; enquanto não estiverem preenchidos aparece <i>por anunciar</i>.</p>
+    <p>O número de pessoas dentro é uma estimativa a partir das entradas e saídas (ver a página de gráficos) e é reposto
+      a zero às 04:00 (ou por um administrador, quando se confirma que o edifício está vazio). Quando o contador só começou a registar depois do início da reunião, o valor indica
+      <i>dados parciais</i> e pode ficar abaixo do real. O contador envia os dados com cerca de 4 minutos de atraso.
+      As semanas vão de domingo a sábado e as horas são as de Portugal continental.</p>
+    <p class="footer-links"><a href="/admin">Administração</a></p>
+  </footer>
+</main>
+
+<dialog id="report" aria-labelledby="reportTitle">
+  <div class="dlg-head">
+    <div><h2 id="reportTitle"></h2><div class="sub" id="reportSub"></div></div>
+    <button type="button" class="dlg-close" id="reportClose" aria-label="Fechar">✕</button>
+  </div>
+  <div class="dlg-body">
+    <form id="reportForm" novalidate>
+      <p class="hint sub" id="reportIntro">Preencha todos os campos e carregue em «Gerar texto». Nada fica guardado: ao fechar, os valores perdem-se.</p>
+      <fieldset><legend>Contagens</legend><div id="numFields"></div></fieldset>
+      <fieldset><legend>Quem</legend><div class="grid2" id="nameFields"></div></fieldset>
+      <div class="form-error" id="formError" role="alert" hidden></div>
+      <div class="dlg-actions"><button type="submit" class="primary">Gerar texto</button></div>
+      <div class="sub" id="saveNote" role="status" aria-live="polite"></div>
+    </form>
+    <div id="reportOut" hidden>
+      <label for="reportText" class="sub">Texto pronto a copiar</label>
+      <textarea id="reportText" readonly></textarea>
+      <div class="dlg-actions"><button type="button" class="primary" id="copyBtn">Copiar</button><span class="sub" id="copyNote" role="status" aria-live="polite"></span></div>
+    </div>
+  </div>
+</dialog>
+
+<script>
+const LOCALE = 'pt-PT';
+const TZ = 'Europe/Lisbon';
+const $ = id => document.getElementById(id);
+
+let week = new URLSearchParams(location.search).get('week');
+let data = null;
+
+const dayFmt = new Intl.DateTimeFormat(LOCALE, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+const shortFmt = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short', timeZone: 'UTC' });
+const hhmm = iso => new Date(iso).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit', timeZone: TZ });
+const dateOf = ymd => new Date(ymd + 'T12:00:00Z');
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+const ROLES = [['mc', 'MC'], ['oferta', 'Oferta'], ['lider', 'Líder louvor'], ['pregador', 'Pregador']];
+
+// People from Planning Center (or set by an admin). Empty roles say "por anunciar" until the meeting is over.
+function peopleBlock(s) {
+  if (!s.people) return '';
+  const rows = ROLES.map(([k, label]) => {
+    const v = s.people[k] && s.people[k].value;
+    if (v) return `<dt>${label}</dt><dd>${esc(v)}</dd>`;
+    return s.status === 'done' ? '' : `<dt>${label}</dt><dd class="tbd">por anunciar</dd>`;
+  }).join('');
+  return rows ? `<dl class="people">${rows}</dl>` : '';
+}
+
+// Clipboard-with-lines icon (a report), drawn inline so it takes the text colour in light and dark.
+const REPORT_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="5.5" y="4.5" width="13" height="17" rx="2"/><rect x="9" y="2.5" width="6" height="4" rx="1.2"/><path d="M9 11h6M9 14.5h6M9 18h3.5"/></svg>';
+
+// A meeting that has not started has nothing to report yet: the button is shown but disabled (not clickable or focusable).
+function infoButton(key, disabled) {
+  return disabled
+    ? `<button type="button" class="info-btn" data-report="${esc(key)}" disabled aria-label="Relatório da reunião: disponível quando a reunião começar" title="Disponível quando a reunião começar">${REPORT_ICON}</button>`
+    : `<button type="button" class="info-btn" data-report="${esc(key)}" aria-label="Relatório da reunião (texto para copiar)" aria-haspopup="dialog" title="Relatório">${REPORT_ICON}</button>`;
+}
+
+function serviceCard(s, date) {
+  let count, state;
+  if (s.status === 'unknown') {
+    count = '<div class="count unknown">Desconhecido</div>';
+    state = '<div class="state">Ainda não começou</div>';
+  } else {
+    count = s.count === null ? '<div class="count unknown">Sem dados</div>' : `<div class="count">${s.count.toLocaleString(LOCALE)}</div>`;
+    state = s.status === 'running'
+      ? '<div class="state"><span class="dot"></span>A decorrer · o valor ainda pode subir</div>'
+      : `<div class="state">Terminou às ${hhmm(s.end)}</div>`;
+  }
+  const partial = s.partial && s.status !== 'unknown' ? '<div class="note">Dados parciais: o contador começou depois do início da reunião.</div>' : '';
+  return `<div class="card">${infoButton('s|' + date + '|' + s.time, s.status === 'unknown')}<div class="title"><span>${esc(s.name)}${s.special ? ' <span class="badge">dia especial</span>' : ''}</span><span class="time">${s.time}</span></div>${count}${state}${partial}${peopleBlock(s)}</div>`;
+}
+
+function eventCard(e, date) {
+  return `<div class="card event">${infoButton('e|' + date)}<div class="title"><span>Evento</span><span class="time">${hhmm(e.start)}–${hhmm(e.end)}</span></div>` +
+    `<div class="count">${e.count.toLocaleString(LOCALE)}</div><div class="state">pico de pessoas dentro</div>` +
+    `<div class="note">máximo às ${hhmm(e.peakAt)}</div></div>`;
+}
+
+let lastSignature = null;
+
+function render() {
+  const a = dateOf(data.weekStart), b = dateOf(data.weekEnd);
+  $('weeklabel').textContent = `${shortFmt.format(a)} – ${shortFmt.format(b)}${data.isCurrent ? ' · esta semana' : ''}`;
+  $('current').disabled = data.isCurrent;
+  $('status').textContent = `Atualizado às ${new Date().toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' })} · ${data.timezone}`;
+
+  const signature = JSON.stringify(data);
+  if (signature === lastSignature) return;
+  lastSignature = signature;
+
+  $('days').innerHTML = data.days.length ? data.days.map(d => `<section class="day">` +
+    `<h2><span class="dayname">${dayFmt.format(dateOf(d.date))}</span>${d.date === data.today ? ' <span class="badge">hoje</span>' : ''}</h2>` +
+    `<div class="cards">${d.services.map(s => serviceCard(s, d.date)).join('')}${d.event ? eventCard(d.event, d.date) : ''}</div></section>`).join('')
+    : '<div class="empty">Sem reuniões nem eventos nesta semana.</div>';
+}
+
+// ---------------------------------------------------------------- meeting report (text to copy)
+
+// [field id, label (dialog and text), hint shown in the dialog only]
+// the server calls the 'adultos' field adultos_fora
+const SAVED_KEY = { adultos: 'adultos_fora' };
+const REPORT_NUMBERS = [
+  ['assistencia', 'Assistência', 'Pré-preenchido com a contagem do contador; corrija se for preciso.'],
+  ['voluntarios', 'Voluntários'],
+  ['visitantes', 'Visitantes'],
+  ['adultos', 'Adultos fora das portas (incluir voluntários kids, safety venue e pais lá em cima)'],
+  ['kids', 'Crianças no Kids'],
+  ['auditorio', 'Crianças/bebés no auditório'],
+  ['decisoes', 'Decisões'],
+];
+// [field id, label in the text, role key on the card]
+const REPORT_NAMES = [['mc', 'MC', 'mc'], ['oferta', 'Oferta', 'oferta'], ['lider', 'Líder Louvor', 'lider'], ['pregacao', 'Pregação', 'pregador']];
+
+const fullDateFmt = new Intl.DateTimeFormat(LOCALE, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+/**
+ * The report text for a meeting card or an event card. card: {kind: 's'|'e', name, time, date, start, end, count}.
+ * values (meetings): {voluntarios, ..., decisoes, mc, oferta, lider, pregacao}, already validated.
+ * Pure function: WhatsApp-style *bold* labels, one line per field.
+ */
+function buildReport(card, values) {
+  const date = fullDateFmt.format(dateOf(card.date));
+  if (card.kind === 'e') {
+    return [`*Evento · ${date} · ${card.start}–${card.end}*`, `*Pessoas (pico):* ${card.count}`].join('\n');
+  }
+  const title = `${card.name}${card.name.includes(card.time) ? '' : ' · ' + card.time} · ${date}`;
+  const lines = [`*${title}*`];
+  for (const [id, label] of REPORT_NUMBERS) lines.push(`*${label}:* ${parseInt(values[id], 10)}`);
+  for (const [id, label] of REPORT_NAMES) lines.push(`*${label}:* ${values[id].replace(/\s+/g, ' ').trim()}`);
+  return lines.join('\n');
+}
+
+// Is a logged-in admin user looking at this page? Then the report is pre-filled from, and saved to, the statistics.
+const sessionReady = fetch('/admin/api/me', { credentials: 'same-origin', cache: 'no-store' })
+  .then(r => r.ok ? r.json() : { loggedIn: false }).catch(() => ({ loggedIn: false }));
+let session = { loggedIn: false };
+
+const dlg = $('report');
+let current = null;      // {key, card}
+
+function cardFor(key) {
+  const [kind, date, time] = key.split('|');
+  const day = data && data.days.find(d => d.date === date);
+  if (!day) return null;
+  if (kind === 'e') {
+    const e = day.event;
+    return e && { kind: 'e', date, name: 'Evento', time: '', start: hhmm(e.start), end: hhmm(e.end), count: e.count, people: null };
+  }
+  const s = day.services.find(x => x.time === time);
+  if (s && s.status === 'unknown') return null;   // not started: no report
+  return s && { kind: 's', date, name: s.name, time: s.time, people: s.people, count: s.count };
+}
+
+function fieldHtml(id, label, value, extra, hint) {
+  return `<div class="field"><label for="f_${id}">${esc(label)}</label>` + (hint ? `<div class="hint" id="h_${id}">${esc(hint)}</div>` : '') +
+    `<input id="f_${id}" name="${id}" type="text" ${extra} value="${esc(value)}" aria-describedby="${hint ? 'h_' + id + ' ' : ''}e_${id}" autocomplete="off"><div class="err" id="e_${id}" hidden></div></div>`;
+}
+
+async function openReport(key) {
+  const card = cardFor(key);
+  if (!card) return;
+  session = await sessionReady;
+  let saved = null, suggest = null;
+  if (session.loggedIn && card.kind === 's') {
+    try {
+      const r = await fetch(`/admin/api/report?day=${card.date}&time=${card.time}`, { credentials: 'same-origin', cache: 'no-store' });
+      if (r.ok) ({ report: saved, suggest } = await r.json());
+      else if (r.status === 401) session = { loggedIn: false };
+    } catch (e) { /* offline: behave as anonymous */ }
+  }
+  current = { key, card };
+  const dateText = fullDateFmt.format(dateOf(card.date));
+  $('reportTitle').textContent = card.kind === 'e' ? 'Evento' : card.name;
+  $('reportSub').textContent = dateText + (card.kind === 'e' ? ` · ${card.start}–${card.end}` : ` · ${card.time}`);
+  $('reportOut').hidden = true;
+  $('copyNote').textContent = '';
+  $('copyBtn').textContent = 'Copiar';
+  $('formError').hidden = true;
+
+  if (card.kind === 'e') {
+    // an event has no inputs: the text is just the count
+    $('reportForm').hidden = true;
+    $('reportText').value = buildReport(card, {});
+    $('reportOut').hidden = false;
+  } else {
+    $('reportForm').hidden = false;
+    const fromCard = { assistencia: card.count !== null && card.count !== undefined ? card.count : '' };
+    const hints = {};
+    if (suggest && suggest.voluntarios !== null && suggest.voluntarios !== undefined) {
+      fromCard.voluntarios = suggest.voluntarios;
+      hints.voluntarios = `Sugestão: ${suggest.voluntarios} pessoas no devocional${suggest.devotionalAt ? ' das ' + hhmm(suggest.devotionalAt) : ''}. Corrija se for preciso.`;
+    }
+    const field = (id) => saved && saved[SAVED_KEY[id] || id] !== undefined ? saved[SAVED_KEY[id] || id] : (fromCard[id] ?? '');
+    $('numFields').innerHTML = REPORT_NUMBERS.map(([id, label, hint]) =>
+      fieldHtml(id, label, field(id), 'inputmode="numeric" pattern="[0-9]*"', hints[id] || hint)).join('');
+    $('nameFields').innerHTML = REPORT_NAMES.map(([id, label, role]) =>
+      fieldHtml(id, label, saved ? saved[id] : ((card.people && card.people[role] && card.people[role].value) || ''), 'maxlength="100"')).join('');
+    $('saveNote').textContent = '';
+    $('reportIntro').textContent = session.loggedIn
+      ? `Sessão iniciada como ${session.user}: ao gerar o texto, o relatório fica guardado nas estatísticas${saved ? ' (já havia um guardado: foi carregado)' : ''}.`
+      : 'Preencha todos os campos e carregue em «Gerar texto». Sem sessão iniciada nada fica guardado: ao fechar, os valores perdem-se.';
+  }
+  dlg.showModal();
+  fitViewport();
+  if (card.kind === 'e') fitText();
+  const first = dlg.querySelector('#reportForm:not([hidden]) input') || $('copyBtn');
+  first.focus();
+}
+
+// grow the text box to its content so the whole report is visible without scrolling
+function fitText() {
+  const ta = $('reportText');
+  ta.style.height = 'auto';
+  ta.style.height = (ta.scrollHeight + 4) + 'px';
+}
+
+// Keep the dialog inside the visible area when the on-screen keyboard is up (visualViewport shrinks/scrolls).
+const vv = window.visualViewport;
+function fitViewport() {
+  if (!vv || !dlg.open) return;
+  dlg.style.setProperty('--vvh', vv.height + 'px');
+  dlg.style.setProperty('--vvtop', vv.offsetTop + 'px');
+}
+if (vv) { vv.addEventListener('resize', fitViewport); vv.addEventListener('scroll', fitViewport); }
+// bring the field being edited into view inside the scrolling dialog body (after the keyboard animation)
+dlg.addEventListener('focusin', e => {
+  if (e.target.matches('input, textarea')) setTimeout(() => e.target.scrollIntoView({ block: 'center' }), 300);
+});
+
+function closeReport() { dlg.close(); }
+
+dlg.addEventListener('close', () => {
+  dlg.style.removeProperty('--vvh');
+  dlg.style.removeProperty('--vvtop');
+  // the cards may have been re-rendered while the dialog was open: refocus the button by key
+  if (!current) return;
+  const btn = [...document.querySelectorAll('.info-btn')].find(b => b.dataset.report === current.key);
+  if (btn) btn.focus();
+  current = null;
+});
+dlg.addEventListener('click', e => { if (e.target === dlg) closeReport(); });   // click on the backdrop
+$('reportClose').addEventListener('click', closeReport);
+$('days').addEventListener('click', e => {
+  const b = e.target.closest('.info-btn');
+  if (b) openReport(b.dataset.report);
+});
+
+// any edit makes the text on screen stale
+$('reportForm').addEventListener('input', e => {
+  $('reportOut').hidden = true;
+  $('copyNote').textContent = '';
+  if (e.target.matches('input')) clearError(e.target);
+});
+
+function setError(input, msg) {
+  input.setAttribute('aria-invalid', 'true');
+  const el = $('e_' + input.name);
+  el.textContent = msg;
+  el.hidden = false;
+}
+function clearError(input) {
+  input.removeAttribute('aria-invalid');
+  const el = $('e_' + input.name);
+  el.textContent = '';
+  el.hidden = true;
+}
+
+$('reportForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const values = {};
+  let firstBad = null;
+  for (const input of $('reportForm').querySelectorAll('input')) {
+    const v = input.value.trim();
+    values[input.name] = v;
+    clearError(input);
+    const isNumber = REPORT_NUMBERS.some(([id]) => id === input.name);
+    let msg = null;
+    if (v === '') msg = 'Obrigatório.';
+    else if (isNumber && !/^\d+$/.test(v)) msg = 'Indique um número inteiro (0 ou mais).';
+    if (msg) { setError(input, msg); firstBad ??= input; }
+  }
+  const err = $('formError');
+  if (firstBad) {
+    err.textContent = 'Há campos por preencher ou inválidos. Corrija-os para gerar o texto.';
+    err.hidden = false;
+    $('reportOut').hidden = true;
+    firstBad.focus();
+    return;
+  }
+  err.hidden = true;
+  $('reportText').value = buildReport(current.card, values);
+  $('reportOut').hidden = false;
+  if (session.loggedIn) saveReport(values);
+  $('copyBtn').textContent = 'Copiar';
+  $('copyNote').textContent = '';
+  fitText();
+  $('reportOut').scrollIntoView({ block: 'nearest' });
+});
+
+async function saveReport(values) {
+  const note = $('saveNote');
+  const body = new URLSearchParams({ csrf: session.csrf, day: current.card.date, time: current.card.time });
+  for (const [id] of REPORT_NUMBERS) body.set(SAVED_KEY[id] || id, values[id]);
+  for (const [id] of REPORT_NAMES) body.set(id, values[id]);
+  note.textContent = 'A guardar…';
+  try {
+    const r = await fetch('/admin/api/report', { method: 'POST', body, credentials: 'same-origin' });
+    const j = await r.json().catch(() => ({}));
+    note.textContent = r.ok ? 'Relatório guardado nas estatísticas ✓' : (r.status === 401 ? 'A sessão expirou: o texto foi gerado mas não ficou guardado. Inicie sessão outra vez.' : `Não foi possível guardar: ${j.error || r.status}`);
+  } catch (e) {
+    note.textContent = 'Não foi possível guardar (sem ligação). O texto foi gerado na mesma.';
+  }
+}
+
+$('copyBtn').addEventListener('click', async () => {
+  const text = $('reportText').value;
+  let done = false;
+  try {
+    await navigator.clipboard.writeText(text);
+    done = true;
+  } catch (e) {
+    $('reportText').focus();
+    $('reportText').select();
+    try { done = document.execCommand('copy'); } catch (e2) { done = false; }
+  }
+  $('copyBtn').textContent = done ? 'Copiado ✓' : 'Copiar';
+  $('copyNote').textContent = done ? 'Texto copiado.' : 'Não foi possível copiar automaticamente: o texto está selecionado, use Ctrl+C.';
+  if (done) setTimeout(() => { $('copyBtn').textContent = 'Copiar'; $('copyNote').textContent = ''; }, 2500);
+});
+
+async function load() {
+  try {
+    const r = await fetch('/api/services' + (week ? `?week=${week}` : ''), { cache: 'no-store' });
+    if (!r.ok) throw new Error(r.status);
+    data = await r.json();
+    render();
+  } catch (e) {
+    $('status').textContent = 'Não foi possível carregar os dados';
+  }
+}
+
+function go(w) {
+  week = w;
+  history.replaceState(null, '', w ? `?week=${w}` : location.pathname);
+  load();
+}
+$('prev').addEventListener('click', () => data && go(data.prev));
+$('next').addEventListener('click', () => data && go(data.next));
+$('current').addEventListener('click', () => go(null));
+load(); setInterval(load, 60000);
+</script>
+</body>
+</html>
