@@ -110,7 +110,7 @@ else say "   would create $CONF_DIR/css-token (random token, root:www-data 640)"
 # ---------------------------------------------------------------- 3. the preview checkout
 step "Preview checkout (own git clone, owned by www-data, branch css-rework)"
 if [[ -d $DOCROOT/.git ]]; then
-	say "   exists     $DOCROOT ($(sudo -u www-data git -C "$DOCROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?'))"
+	say "   exists     $DOCROOT ($(runuser -u www-data -- git -C "$DOCROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?'))"
 else
 	url=$REPO_URL; [[ -n $url ]] || url=$(git -C "$APP_DIR" config remote.origin.url 2>/dev/null || true)
 	[[ -n $url ]] || { echo "no --repo-url and this repository has no origin" >&2; exit 1; }

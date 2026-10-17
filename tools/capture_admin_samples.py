@@ -50,11 +50,16 @@ def main():
         for slug in PAGES:
             save(f'{slug}.html', fetch_text(home, f'{a.base}/admin/{slug}'))
 
-        # the statistics page asks for JSON: keep the answer to its first request
+        # the statistics page asks for JSON three times (part=week, month, year): keep each answer
         pg = ctx.new_page()
-        with pg.expect_response(lambda r: '/admin/api/stats' in r.url) as ri:
-            pg.goto(f'{a.base}/admin/estatisticas')
-        save('api-stats.json', ri.value.text())
+        answers = []
+        pg.on('response', lambda r: answers.append(r) if '/admin/api/stats' in r.url else None)
+        pg.goto(f'{a.base}/admin/estatisticas')
+        pg.wait_for_load_state('networkidle')
+        pg.wait_for_timeout(500)
+        for r in answers:
+            m = re.search(r'part=(week|month|year)', r.url)
+            save(f'api-stats-{m.group(1)}.json', r.text())
         save('api-me.json', '{"loggedIn":false}\n')     # what the public pages ask; the preview is never logged in
 
         # states with a flash message: post a form, follow the redirect, keep the page that shows the message.

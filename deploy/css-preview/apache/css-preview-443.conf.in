@@ -32,7 +32,9 @@
 
     # Admin: static samples captured from a throwaway database. Saving does nothing: a POST just comes back to the page.
     RewriteRule ^/admin/api/me$ /fixtures/admin/api-me.json [L]
-    RewriteRule ^/admin/api/stats$ /fixtures/admin/api-stats.json [L]
+    RewriteCond %{QUERY_STRING} (?:^|&)part=(week|month|year)(?:&|$)
+    RewriteRule ^/admin/api/stats$ /fixtures/admin/api-stats-%1.json [L]
+    RewriteRule ^/admin/api/stats$ /fixtures/admin/api-stats-week.json [L]
     RewriteRule ^/admin/api/ - [F]
     RewriteCond %{REQUEST_METHOD} =POST
     RewriteRule ^/admin(/[a-z-]*)?$ /admin$1 [R=303,L]

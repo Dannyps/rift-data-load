@@ -10,7 +10,7 @@ DOCROOT=$(dirname "$APP_DIR")/rift-css
 [[ ${1:-} == --docroot ]] && DOCROOT=$2
 T=$(mktemp -d); chmod 755 "$T"; trap 'rm -rf "$T"' EXIT
 BASE=$(git -C "$APP_DIR" rev-parse HEAD)
-G=(sudo -u www-data git -C "$DOCROOT")
+G=(runuser -u www-data -- git -C "$DOCROOT")
 # everything on css-rework that this repository does not have yet
 "${G[@]}" bundle create "$T/rework.bundle" css-rework --not "$BASE" >/dev/null 2>&1 || { echo "css-rework has nothing new relative to $BASE" >&2; exit 1; }
 chmod 644 "$T/rework.bundle"
