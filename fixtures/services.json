@@ -1,0 +1,120 @@
+{
+ "weekStart": "2026-10-18",
+ "weekEnd": "2026-10-24",
+ "prev": "2026-10-11",
+ "next": "2026-10-25",
+ "isCurrent": true,
+ "today": "2026-10-18",
+ "timezone": "Europe/Lisbon",
+ "days": [
+  {
+   "date": "2026-10-18",
+   "services": [
+    {
+     "name": "Reunião das 09:30",
+     "time": "09:30",
+     "start": "2026-10-18T08:30:00Z",
+     "end": "2026-10-18T10:30:00Z",
+     "status": "done",
+     "count": 138,
+     "partial": false,
+     "special": false,
+     "people": {
+      "mc": {
+       "value": "Ana Ferreira",
+       "source": "pco",
+       "flag": null
+      },
+      "oferta": {
+       "value": "Rui Almeida",
+       "source": "pco",
+       "flag": null
+      },
+      "lider": {
+       "value": "Sofia Lopes",
+       "source": "pco",
+       "flag": null
+      },
+      "pregador": {
+       "value": "Pr. Miguel Duarte",
+       "source": "pco",
+       "flag": null
+      }
+     }
+    },
+    {
+     "name": "Reunião das 11:30",
+     "time": "11:30",
+     "start": "2026-10-18T10:30:00Z",
+     "end": "2026-10-18T12:30:00Z",
+     "status": "running",
+     "count": 419,
+     "partial": false,
+     "special": false,
+     "people": {
+      "mc": {
+       "value": "Carlos Mendes",
+       "source": "pco",
+       "flag": null
+      },
+      "oferta": {
+       "value": "Rui Almeida",
+       "source": "pco",
+       "flag": null
+      },
+      "lider": {
+       "value": "Sofia Lopes",
+       "source": "pco",
+       "flag": null
+      },
+      "pregador": {
+       "value": "Pr. Miguel Duarte",
+       "source": "pco",
+       "flag": null
+      }
+     }
+    },
+    {
+     "name": "Reunião das 17:30",
+     "time": "17:30",
+     "start": "2026-10-18T16:30:00Z",
+     "end": "2026-10-18T18:30:00Z",
+     "status": "unknown",
+     "count": null,
+     "partial": false,
+     "special": false,
+     "people": {
+      "mc": {
+       "value": "Inês Barros",
+       "source": "pco",
+       "flag": null
+      },
+      "lider": {
+       "value": "Tomás Pinto",
+       "source": "pco",
+       "flag": null
+      }
+     }
+    }
+   ],
+   "event": null
+  },
+  {
+   "date": "2026-10-21",
+   "services": [
+    {
+     "name": "Reunião das 20:30",
+     "time": "20:30",
+     "start": "2026-10-21T19:30:00Z",
+     "end": "2026-10-21T21:30:00Z",
+     "status": "unknown",
+     "count": null,
+     "partial": false,
+     "special": false,
+     "people": {}
+    }
+   ],
+   "event": null
+  }
+ ]
+}

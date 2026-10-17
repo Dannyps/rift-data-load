@@ -1,0 +1,157 @@
+{
+ "weekStart": "2026-10-11",
+ "weekEnd": "2026-10-17",
+ "prev": "2026-10-04",
+ "next": "2026-10-18",
+ "isCurrent": false,
+ "today": "2026-10-18",
+ "timezone": "Europe/Lisbon",
+ "days": [
+  {
+   "date": "2026-10-11",
+   "services": [
+    {
+     "name": "Reunião das 09:30",
+     "time": "09:30",
+     "start": "2026-10-11T08:30:00Z",
+     "end": "2026-10-11T10:30:00Z",
+     "status": "done",
+     "count": 112,
+     "partial": true,
+     "special": false,
+     "people": {
+      "mc": {
+       "value": "Ana Ferreira",
+       "source": "pco",
+       "flag": null
+      },
+      "oferta": {
+       "value": "Rui Almeida",
+       "source": "pco",
+       "flag": null
+      },
+      "lider": {
+       "value": "Sofia Lopes",
+       "source": "pco",
+       "flag": null
+      },
+      "pregador": {
+       "value": "Pr. Miguel Duarte",
+       "source": "pco",
+       "flag": null
+      }
+     }
+    },
+    {
+     "name": "Reunião das 11:30",
+     "time": "11:30",
+     "start": "2026-10-11T10:30:00Z",
+     "end": "2026-10-11T12:30:00Z",
+     "status": "done",
+     "count": 407,
+     "partial": false,
+     "special": false,
+     "people": {
+      "mc": {
+       "value": "Carlos Mendes",
+       "source": "pco",
+       "flag": null
+      },
+      "oferta": {
+       "value": "Rui Almeida",
+       "source": "pco",
+       "flag": null
+      },
+      "lider": {
+       "value": "Sofia Lopes",
+       "source": "pco",
+       "flag": null
+      },
+      "pregador": {
+       "value": "Pr. Miguel Duarte",
+       "source": "pco",
+       "flag": null
+      }
+     }
+    },
+    {
+     "name": "Reunião das 17:30",
+     "time": "17:30",
+     "start": "2026-10-11T16:30:00Z",
+     "end": "2026-10-11T18:30:00Z",
+     "status": "done",
+     "count": 89,
+     "partial": false,
+     "special": false,
+     "people": {
+      "mc": {
+       "value": "Inês Barros",
+       "source": "pco",
+       "flag": null
+      },
+      "oferta": {
+       "value": "Tomás Pinto",
+       "source": "pco",
+       "flag": null
+      },
+      "lider": {
+       "value": "Beatriz Cruz",
+       "source": "pco",
+       "flag": null
+      },
+      "pregador": {
+       "value": "Pra. Helena Costa",
+       "source": "pco",
+       "flag": null
+      }
+     }
+    }
+   ],
+   "event": null
+  },
+  {
+   "date": "2026-10-14",
+   "services": [
+    {
+     "name": "Noite de Louvor",
+     "time": "19:30",
+     "start": "2026-10-14T18:30:00Z",
+     "end": "2026-10-14T20:30:00Z",
+     "status": "done",
+     "count": 64,
+     "partial": false,
+     "special": true,
+     "people": {}
+    }
+   ],
+   "event": null
+  },
+  {
+   "date": "2026-10-15",
+   "services": [
+    {
+     "name": "Reunião das 20:30",
+     "time": "20:30",
+     "start": "2026-10-15T19:30:00Z",
+     "end": "2026-10-15T21:30:00Z",
+     "status": "done",
+     "count": null,
+     "partial": false,
+     "special": false,
+     "people": {}
+    }
+   ],
+   "event": null
+  },
+  {
+   "date": "2026-10-17",
+   "services": [],
+   "event": {
+    "start": "2026-10-17T09:14:00Z",
+    "end": "2026-10-17T13:04:00Z",
+    "count": 22,
+    "peakAt": "2026-10-17T10:35:00Z"
+   }
+  }
+ ]
+}
