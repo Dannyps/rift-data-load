@@ -119,7 +119,7 @@ if (( SYSTEM )); then
 	if [[ ! -f /usr/lib/apache2/modules/libphp.so ]] && ! ls /usr/lib/apache2/modules/libphp*.so >/dev/null 2>&1; then missing+=(libapache2-mod-php); fi
 	dpkg -s python3-certbot-apache >/dev/null 2>&1 || missing+=(python3-certbot-apache)
 	if ((${#missing[@]})); then run apt-get install -y "${missing[@]}"; else say "   everything needed is installed"; fi
-	for m in rewrite ssl; do
+	for m in rewrite ssl headers; do
 		if apache2ctl -M 2>/dev/null | grep -q "${m}_module"; then say "   apache module $m enabled"; else run a2enmod "$m"; fi
 	done
 else
