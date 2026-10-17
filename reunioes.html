@@ -2,6 +2,9 @@
 <html lang="pt-PT">
 <head>
 <meta charset="utf-8">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
 <title>Reuniões · Contador de pessoas RIFT</title>
 <link rel="stylesheet" href="assets/common.css">
@@ -34,6 +37,13 @@
   .card .title { padding-right: 44px; }
   .info-btn { position: absolute; top: 6px; right: 6px; width: 36px; height: 36px; padding: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
     color: var(--text-secondary); background: var(--surface-1); }
+  .link-btn { position: absolute; top: 48px; right: 6px; width: 36px; height: 36px; padding: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+    color: var(--text-secondary); background: var(--surface-1); }
+  .link-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+  .card { scroll-margin-top: 16px; }
+  .card.linked { outline: 2px solid var(--series-in); outline-offset: 2px; }
+  #toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--text-primary); color: var(--surface-1); padding: 8px 14px; border-radius: 8px; font-size: 14px; z-index: 10; opacity: 0; pointer-events: none; transition: opacity .15s; }
+  #toast.show { opacity: 1; }
   .info-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
   .info-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
   .info-btn:disabled { opacity: .35; cursor: not-allowed; }
@@ -105,6 +115,8 @@
   </footer>
 </main>
 
+<div id="toast" role="status" aria-live="polite"></div>
+
 <dialog id="report" aria-labelledby="reportTitle">
   <div class="dlg-head">
     <div><h2 id="reportTitle"></h2><div class="sub" id="reportSub"></div></div>
@@ -133,6 +145,8 @@ const TZ = 'Europe/Lisbon';
 const $ = id => document.getElementById(id);
 
 let week = new URLSearchParams(location.search).get('week');
+// A link to a card (#r-2026-10-18-0930) opens the week that contains it.
+if (!week) { const m = /^#r-(\d{4}-\d{2}-\d{2})-/.exec(location.hash); if (m) week = m[1]; }
 let data = null;
 
 const dayFmt = new Intl.DateTimeFormat(LOCALE, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
@@ -164,6 +178,17 @@ function infoButton(key, disabled) {
     : `<button type="button" class="info-btn" data-report="${esc(key)}" aria-label="Relatório da reunião (texto para copiar)" aria-haspopup="dialog" title="Relatório">${REPORT_ICON}</button>`;
 }
 
+// Chain-link icon (copy a link to this card).
+const LINK_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3A4 4 0 0 0 11 18.7l1-1"/></svg>';
+
+// Stable anchor of a card: r-YYYY-MM-DD-HHMM for a meeting, r-YYYY-MM-DD-evento for the event.
+const meetingId = (date, time) => `r-${date}-${time.replace(':', '')}`;
+const eventId = date => `r-${date}-evento`;
+
+function linkButton(id) {
+  return `<button type="button" class="link-btn" data-link="${esc(id)}" aria-label="Copiar ligação para esta reunião" title="Copiar ligação">${LINK_ICON}</button>`;
+}
+
 function serviceCard(s, date) {
   let count, state;
   if (s.status === 'unknown') {
@@ -176,11 +201,13 @@ function serviceCard(s, date) {
       : `<div class="state">Terminou às ${hhmm(s.end)}</div>`;
   }
   const partial = s.partial && s.status !== 'unknown' ? '<div class="note">Dados parciais: o contador começou depois do início da reunião.</div>' : '';
-  return `<div class="card">${infoButton('s|' + date + '|' + s.time, s.status === 'unknown')}<div class="title"><span>${esc(s.name)}${s.special ? ' <span class="badge">dia especial</span>' : ''}</span><span class="time">${s.time}</span></div>${count}${state}${partial}${peopleBlock(s)}</div>`;
+  const id = meetingId(date, s.time);
+  return `<div class="card" id="${id}">${infoButton('s|' + date + '|' + s.time, s.status === 'unknown')}${linkButton(id)}<div class="title"><span>${esc(s.name)}${s.special ? ' <span class="badge">dia especial</span>' : ''}</span><span class="time">${s.time}</span></div>${count}${state}${partial}${peopleBlock(s)}</div>`;
 }
 
 function eventCard(e, date) {
-  return `<div class="card event">${infoButton('e|' + date)}<div class="title"><span>Evento</span><span class="time">${hhmm(e.start)}–${hhmm(e.end)}</span></div>` +
+  const id = eventId(date);
+  return `<div class="card event" id="${id}">${infoButton('e|' + date)}${linkButton(id)}<div class="title"><span>Evento</span><span class="time">${hhmm(e.start)}–${hhmm(e.end)}</span></div>` +
     `<div class="count">${e.count.toLocaleString(LOCALE)}</div><div class="state">pico de pessoas dentro</div>` +
     `<div class="note">máximo às ${hhmm(e.peakAt)}</div></div>`;
 }
@@ -201,7 +228,61 @@ function render() {
     `<h2><span class="dayname">${dayFmt.format(dateOf(d.date))}</span>${d.date === data.today ? ' <span class="badge">hoje</span>' : ''}</h2>` +
     `<div class="cards">${d.services.map(s => serviceCard(s, d.date)).join('')}${d.event ? eventCard(d.event, d.date) : ''}</div></section>`).join('')
     : '<div class="empty">Sem reuniões nem eventos nesta semana.</div>';
+  markLinked(true);
 }
+
+// ---------------------------------------------------------------- links to a single card (#r-YYYY-MM-DD-HHMM)
+
+const CARD_HASH = /^#(r-(\d{4}-\d{2}-\d{2})-(?:\d{4}|evento))$/;
+let scrolledToHash = false;
+
+// Highlight the card the address points to; scroll to it once (the cards are drawn after the page loads).
+function markLinked(scroll) {
+  const m = CARD_HASH.exec(location.hash);
+  document.querySelectorAll('.card.linked').forEach(c => c.classList.remove('linked'));
+  const el = m && document.getElementById(m[1]);
+  if (!el) return;
+  el.classList.add('linked');
+  if (scroll && !scrolledToHash) { scrolledToHash = true; el.scrollIntoView({ block: 'center' }); }
+}
+
+let toastTimer = null;
+function toast(text) {
+  const t = $('toast');
+  t.textContent = text;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch (e) { /* fall back below */ }
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+  document.body.appendChild(ta); ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  ta.remove();
+  return ok;
+}
+
+$('days').addEventListener('click', async e => {
+  const b = e.target.closest('.link-btn');
+  if (!b) return;
+  const url = `${location.origin}${location.pathname}#${b.dataset.link}`;
+  history.replaceState(null, '', '#' + b.dataset.link);
+  scrolledToHash = true;
+  markLinked(false);
+  toast(await copyText(url) ? 'Ligação copiada' : 'Não foi possível copiar: copie o endereço da barra do browser');
+});
+
+window.addEventListener('hashchange', () => {
+  scrolledToHash = false;
+  const m = CARD_HASH.exec(location.hash);
+  // a link to a card of another week (pasted into this tab): load that week, then markLinked runs from render()
+  if (m && data && (m[2] < data.weekStart || m[2] > data.weekEnd)) { week = m[2]; load(); return; }
+  markLinked(true);
+});
 
 // ---------------------------------------------------------------- meeting report (text to copy)
 
@@ -450,6 +531,7 @@ async function load() {
 
 function go(w) {
   week = w;
+  scrolledToHash = true;
   history.replaceState(null, '', w ? `?week=${w}` : location.pathname);
   load();
 }
