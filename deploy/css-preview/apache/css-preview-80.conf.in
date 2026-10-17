@@ -1,0 +1,10 @@
+<VirtualHost *:80>
+    ServerName @DOMAIN@
+    DocumentRoot @DOCROOT@
+
+    ErrorLog ${APACHE_LOG_DIR}/rift-css_error.log
+    CustomLog ${APACHE_LOG_DIR}/rift-css_access.log combined
+RewriteEngine on
+RewriteCond %{SERVER_NAME} =@DOMAIN@
+RewriteRule ^ https://%{SERVER_NAME}%{REQUEST_URI} [END,NE,R=permanent]
+</VirtualHost>
