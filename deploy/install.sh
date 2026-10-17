@@ -23,6 +23,7 @@
 # Not done here (needs a person): pointing the DNS name at the host, installing docker itself, creating the
 # first admin user, and setting the URL and token in the people counter. They are printed at the end.
 set -euo pipefail
+shopt -s lastpipe   # the last command of a pipeline (put) runs in this shell, so CHANGES/WROTE are kept
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 APPLY=0 DOMAIN=rift.dannyps.net APP_DIR=$(dirname "$HERE") DB_DIR= TOKEN_FILE= PCO_INI= CERTBOT_EMAIL= SYSTEM=1

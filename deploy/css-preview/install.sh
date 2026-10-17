@@ -18,6 +18,7 @@
 #   --no-system        testing: skip apt, systemctl, a2en*, certbot, git clone (use with DESTDIR=)
 # Environment: DESTDIR=/some/dir  puts /etc, /var/lib and /usr/local under it (for testing the file layout).
 set -euo pipefail
+shopt -s lastpipe   # the last command of a pipeline (put) runs in this shell, so CHANGES/WROTE are kept
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 APP_DIR=$(dirname "$(dirname "$HERE")")
