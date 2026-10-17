@@ -16,11 +16,15 @@ Base URL: `{{BASE}}`   (this document: `{{BASE}}/_edit/`, also at `{{BASE}}/llms
    stacks only; `url(#id)`, `url(data:image/...)` and `url(/same-site-path)` are allowed). No JavaScript in CSS.
 3. Keep **both colour schemes**: the site follows the visitor's setting through `@media (prefers-color-scheme: dark)`.
    Colours live in design tokens (CSS variables on `:root`, below); restyling mostly means changing tokens, then the rules.
+   You may add new tokens and rules freely; you may change token values; keep existing token names defined.
 4. Keep it **usable on phones** (design for 390 px wide AND 1200 px). Existing breakpoints: 720 px (admin menu becomes a
    slide-in drawer, tables become cards, report dialog is pinned above the keyboard) and 520 px.
 5. Accessibility floor: text contrast at least 4.5:1 (3:1 for large text and UI borders), a visible `:focus-visible`
    outline on every interactive element, tap targets of at least 36 px, honour `prefers-reduced-motion`, never hide content.
-6. File size limit {{MAX_KB}} KB. Do not delete rules you do not understand; the API warns when selectors disappear.
+6. File size limit {{MAX_KB}} KB. Do not delete rules you do not understand; the API warns when selectors disappear, and
+   refuses an upload that drops more than half of the existing selectors (it looks truncated) unless you add `&force=1`.
+7. Contrast: compute it (WCAG relative luminance: L = 0.2126 R + 0.7152 G + 0.0722 B on linearised sRGB channels, ratio =
+   (L1 + 0.05) / (L2 + 0.05)) rather than judging by eye; check text on `--surface-1` AND `--surface-2`, in both schemes.
 
 ## The API (plain HTTP; reading is open, writing needs the token)
 
@@ -46,22 +50,40 @@ selectors or tokens that existed before and are now gone, and a missing dark mod
 `"ok":false`, an `error` in plain language, a `hint`, and for a rejected stylesheet a `problems` list (with line
 numbers); a rejected stylesheet is not saved at all. Every save is a git commit on the branch `css-rework`.
 Status codes: 401 wrong/missing token, 413 too large, 422 rejected CSS, 429 too many requests, 409 save in progress.
+`message` must be URL-encoded (`+` for spaces is fine). Every save is a commit the site owner may read: work in a few
+meaningful saves rather than hundreds (more than 120 saves in an hour are refused with 429). Going back is always possible.
 
 ## How to work
 
-1. `GET /_edit/css` and read it: it has four sections (tokens; base and shared; meetings page `body.reunioes`; admin
-   `body.admin`). Rules of the meetings page and the admin area are scoped by a class on `<body>` because the same class
+1. `GET /_edit/css` and read it: it has four sections, marked by comment banners `/* ===== 1. Design tokens */` ...
+   (tokens; base and shared; meetings page `body.reunioes`; admin `body.admin`). Rules of the meetings page and the admin area are scoped by a class on `<body>` because the same class
    names (`.card`, `.hint` ...) look different on each.
 2. Make a change, `PUT` the whole file, then **look at the pages** in a browser (reload; nothing is cached) at 390 px and
    1200 px wide, in light AND dark (emulate `prefers-color-scheme`). Iterate with small saves and short `message`s.
-3. Check every page type, not only the one you changed: charts, meetings (all the states), admin (all the pages).
+3. Check every page type, not only the one you changed: charts, meetings (all the states), admin (all the pages). States that
+   need a gesture (script them with Playwright or similar):
+   - report dialog: on `/reunioes` click the first `.info-btn:not([disabled])` (clipboard icon); close with Escape;
+   - admin menu drawer: viewport under 720 px wide, click `#menutoggle`; close with Escape or the backdrop;
+   - chart tooltip: on `/` move the mouse over the chart (`.tip`); keyboard focus: press Tab and look at the outlines;
+   - the pulsing "running" dot animates: emulate `prefers-reduced-motion: reduce` to freeze it in screenshots.
 4. When done, tell the site owner what you changed and anything that needs a markup change.
 
 ## Preview pages (static, invented data; buttons that "save" do nothing)
 
 {{PAGES}}
 
-The preview's clock is fixed at Sunday 18 October 2026, 12:15 (Lisbon).
+The preview's DATA is as of Sunday 18 October 2026, 12:15 Lisbon (the "Atualizado às ..." text in the page header shows the
+real time of day). Known, pre-existing details that are not yours to fix unless you want to: on the charts page at 390 px the
+range buttons wrap to two lines; native date/time inputs show the browser's own format.
+
+## Colour roles
+
+Two kinds of colour token. **Data colours** `--series-in` (entries, blue), `--series-out` (exits, orange), `--series-bal`
+(balance, green), `--series-4`, `--series-5` paint the charts and their legends/swatches. **Role colours** are used by the
+interface itself and by default point at a data colour, so you can restyle them independently:
+`--accent` (current page in the nav, the pulsing "running" dot, highlights, admin menu marker), `--focus` (keyboard focus
+outlines, the card a link points at), `--ok` (success messages), `--danger` (errors, invalid fields, destructive buttons).
+To change the brand/accent colour, change `--accent` (and probably `--focus`), not `--series-bal`.
 
 ## Current design tokens (light  |  dark)
 

@@ -234,6 +234,30 @@ function inspect_css(string $css): array
     return [$errors, array_keys($selectors), array_keys($props)];
 }
 
+/** Names of the custom properties set inside @media (prefers-color-scheme: dark) blocks. */
+function dark_props(string $css): array
+{
+    $plain = preg_replace('!/\*.*?\*/!s', '', $css);
+    $out = [];
+    $offset = 0;
+    while (($at = strpos($plain, 'prefers-color-scheme: dark', $offset)) !== false) {
+        $open = strpos($plain, '{', $at);
+        if ($open === false) {
+            break;
+        }
+        $depth = 1;
+        $i = $open + 1;
+        for ($n = strlen($plain); $i < $n && $depth > 0; $i++) {
+            $depth += $plain[$i] === '{' ? 1 : ($plain[$i] === '}' ? -1 : 0);
+        }
+        if (preg_match_all('/(--[a-zA-Z0-9_-]+)\s*:/', substr($plain, $open, $i - $open), $m)) {
+            $out = array_merge($out, $m[1]);
+        }
+        $offset = $i;
+    }
+    return array_values(array_unique($out));
+}
+
 function check_forbidden(string $css): array
 {
     $errors = [];
@@ -340,22 +364,25 @@ if ($path === '/revert' && $method === 'POST') {
     require_token();
     require_branch();
     $to = (string)($_GET['to'] ?? '');
+    if ($to === '') {
+        fail(400, 'Say which commit to go back to:  POST /_edit/revert?to=<commit>', 'Take a commit id from GET /_edit/log.');
+    }
     if (!preg_match('/^[0-9a-f]{7,40}$/', $to)) {
-        fail(400, 'Give the commit to go back to:  POST /_edit/revert?to=<commit>  (see GET /_edit/log).');
+        fail(400, "'" . substr($to, 0, 40) . "' is not a commit id (7 to 40 hexadecimal characters).", 'Take a commit id from GET /_edit/log.');
     }
     $css = git(['show', "$to:" . CSS_FILE]);
     $inHistory = git(['merge-base', '--is-ancestor', $to, 'HEAD']) !== null;
     if ($css === null || !$inHistory) {
         fail(404, 'That commit is not part of this branch\'s history.', 'Use a commit from GET /_edit/log.');
     }
-    commit_css($css, "Revert to $to");
+    commit_css($css, "Revert to $to", true);
 }
 
 fail(404, 'Unknown endpoint or method.', 'GET ' . base_url() . '/_edit/ explains everything.');
 
 // ------------------------------------------------------------------ writing
 
-function commit_css(string $css, string $message): never
+function commit_css(string $css, string $message, bool $revert = false): never
 {
     if (!mb_check_encoding($css, 'UTF-8') || str_contains($css, "\0")) {
         fail(422, 'The stylesheet must be plain UTF-8 text.');
@@ -385,22 +412,26 @@ function commit_css(string $css, string $message): never
     [, $oldSelectors, $oldProps] = inspect_css($old);
     $warnings = [];
     $gone = array_values(array_diff($oldSelectors, $newSelectors));
-    if ($gone) {
+    if ($gone && !$revert) {
         $warnings[] = count($gone) . ' selector(s) of the previous version no longer exist; check that nothing lost its styling: ' . implode(' | ', array_slice($gone, 0, 25)) . (count($gone) > 25 ? ' | ...' : '');
     }
-    if (count($oldSelectors) >= 20 && count($gone) > count($oldSelectors) / 2 && !isset($_GET['force'])) {
+    if (!$revert && count($oldSelectors) >= 20 && count($gone) > count($oldSelectors) / 2 && !isset($_GET['force'])) {
         fail(422, 'The stylesheet was NOT saved: it would remove ' . count($gone) . ' of the ' . count($oldSelectors) . ' selectors of the current one.',
             'That looks like a truncated or partial upload. Send the COMPLETE stylesheet. If you really mean to drop most of it, repeat the request with &force=1 added to the URL.',
             ['would_remove' => array_slice($gone, 0, 25)]);
     }
     $lostProps = array_values(array_diff($oldProps, $newProps));
-    if ($lostProps) {
+    if ($lostProps && !$revert) {
         $warnings[] = 'Design tokens (custom properties) removed: ' . implode(', ', $lostProps) . '. Anything still using var() of these now falls back to nothing.';
     }
-    if (str_contains($old, 'prefers-color-scheme: dark') && !str_contains($css, 'prefers-color-scheme: dark')) {
+    $lostDark = array_values(array_diff(dark_props($old), dark_props($css)));
+    if ($lostDark && !$revert && str_contains($css, 'prefers-color-scheme: dark')) {
+        $warnings[] = 'Tokens that had a dark-mode value no longer have one: ' . implode(', ', $lostDark) . '. In dark mode they now use the light value.';
+    }
+    if (!$revert && str_contains($old, 'prefers-color-scheme: dark') && !str_contains($css, 'prefers-color-scheme: dark')) {
         $warnings[] = 'The new stylesheet has no dark-mode rules (@media (prefers-color-scheme: dark)); the site supports light and dark.';
     }
-    if (!preg_match('/max-width\s*:\s*\d+px/', $css)) {
+    if (!$revert && !preg_match('/max-width\s*:\s*\d+px/', $css)) {
         $warnings[] = 'The new stylesheet has no max-width media query; check the phone layout (390 px wide).';
     }
 

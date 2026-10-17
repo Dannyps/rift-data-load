@@ -24,6 +24,12 @@
   --series-bal: #1baf7a;
   --series-4: #eda100;
   --series-5: #e87ba4;
+  /* Roles used by the interface itself. By default they reuse the data colours above, but they are separate
+     tokens: restyle the accent without recolouring the charts, and the other way round. */
+  --accent: var(--series-bal);   /* current page in the nav, the "running" dot, highlights */
+  --focus: var(--series-in);     /* keyboard focus outlines, the card a link points at */
+  --ok: var(--series-bal);       /* success messages */
+  --danger: var(--series-out);   /* errors, invalid fields, destructive buttons */
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -51,9 +57,9 @@ body {
 main { max-width: 980px; margin: 0 auto; }
 .nav { display: flex; gap: 16px; margin: 4px 0 0; font-size: 14px; }
 .nav a { color: var(--text-secondary); text-decoration: none; padding-bottom: 2px; border-bottom: 2px solid transparent; }
-.nav a[aria-current="page"] { color: var(--text-primary); border-bottom-color: var(--series-bal); }
+.nav a[aria-current="page"] { color: var(--text-primary); border-bottom-color: var(--accent); }
 .nav a:hover { color: var(--text-primary); }
-.nav a:focus-visible { outline: 2px solid var(--series-in); outline-offset: 2px; }
+.nav a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; }
 h1 { font-size: 20px; margin: 0; font-weight: 600; }
 .sub { color: var(--text-secondary); font-size: 13px; }
@@ -74,7 +80,7 @@ button {
 }
 button[aria-pressed="true"] { background: var(--surface-2); color: var(--text-primary); border-color: var(--text-muted); }
 button.primary { background: var(--text-primary); color: var(--surface-1); border-color: var(--text-primary); }
-button:focus-visible { outline: 2px solid var(--series-in); outline-offset: 2px; }
+button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .legend { display: flex; gap: 16px; font-size: 13px; color: var(--text-secondary); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 #chart { position: relative; }
@@ -124,7 +130,7 @@ body.reunioes .people { margin: 10px 0 0; padding-top: 8px; border-top: 1px soli
 body.reunioes .people dt { color: var(--text-muted); }
 body.reunioes .people dd { margin: 0; color: var(--text-primary); overflow-wrap: anywhere; }
 body.reunioes .people dd.tbd { color: var(--text-muted); font-style: italic; }
-body.reunioes .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--series-bal); display: inline-block; animation: pulse 2s ease-in-out infinite; }
+body.reunioes .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); display: inline-block; animation: pulse 2s ease-in-out infinite; }
 body.reunioes .card.event { border-left: 3px solid var(--series-out); }
 @keyframes pulse { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) {
@@ -136,7 +142,7 @@ body.reunioes .info-btn { position: absolute; top: 6px; right: 6px; width: 36px;
 body.reunioes .link-btn { position: absolute; top: 48px; right: 6px; width: 36px; height: 36px; padding: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--text-secondary); background: var(--surface-1); }
 body.reunioes .link-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 body.reunioes .card { scroll-margin-top: 16px; }
-body.reunioes .card.linked { outline: 2px solid var(--series-in); outline-offset: 2px; }
+body.reunioes .card.linked { outline: 2px solid var(--focus); outline-offset: 2px; }
 body.reunioes #toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--text-primary); color: var(--surface-1); padding: 8px 14px; border-radius: 8px; font-size: 14px; z-index: 10; opacity: 0; pointer-events: none; transition: opacity .15s; }
 body.reunioes #toast.show { opacity: 1; }
 body.reunioes .info-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
@@ -161,10 +167,10 @@ body.reunioes .dlg-body legend { font-size: 12px; font-weight: 600; color: var(-
 body.reunioes .field { margin-top: 10px; }
 body.reunioes .field label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 3px; }
 body.reunioes .field input { font: inherit; width: 100%; color: var(--text-primary); background: var(--surface-2); border: 1px solid var(--grid); border-radius: 6px; padding: 8px 10px; }
-body.reunioes .field input[aria-invalid="true"] { border-color: var(--series-out); }
-body.reunioes .field input:focus-visible, body.reunioes #reportText:focus-visible { outline: 2px solid var(--series-in); outline-offset: 1px; }
+body.reunioes .field input[aria-invalid="true"] { border-color: var(--danger); }
+body.reunioes .field input:focus-visible, body.reunioes #reportText:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 body.reunioes .field .hint { font-size: 12px; color: var(--text-muted); margin: -1px 0 4px; }
-body.reunioes .field .err { color: var(--series-out); font-size: 12px; margin-top: 2px; }
+body.reunioes .field .err { color: var(--danger); font-size: 12px; margin-top: 2px; }
 body.reunioes .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
 @media (max-width: 520px) {
   body.reunioes .grid2 { grid-template-columns: 1fr; }
@@ -172,7 +178,7 @@ body.reunioes .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12p
 body.reunioes .dlg-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 16px; }
 body.reunioes #reportOut { margin-top: 18px; }
 body.reunioes #reportText { width: 100%; min-height: 6em; font: 14px/1.5 system-ui, sans-serif; color: var(--text-primary); background: var(--surface-2); border: 1px solid var(--grid); border-radius: 6px; padding: 10px; resize: vertical; }
-body.reunioes .form-error { color: var(--series-out); font-size: 13px; margin-top: 10px; }
+body.reunioes .form-error { color: var(--danger); font-size: 13px; margin-top: 10px; }
 
 /* ===================================================================== 4. Admin area (/admin/*), body.admin */
 body.admin header { align-items: center; }
@@ -181,18 +187,18 @@ body.admin .sub a, body.admin a.sub { color: var(--text-secondary); }
 body.admin h2 { font-size: 18px; font-weight: 600; margin: 24px 0 12px; }
 body.admin h3 { font-size: 15px; font-weight: 600; margin: 24px 0 8px; }
 body.admin form.inline { display: inline-flex; gap: 8px; align-items: center; margin: 0; }
-body.admin .flash { padding: 10px 14px; border-radius: 6px; margin: 16px 0 0; background: var(--surface-2); border-left: 3px solid var(--series-bal); }
-body.admin .flash.error { border-left-color: var(--series-out); }
+body.admin .flash { padding: 10px 14px; border-radius: 6px; margin: 16px 0 0; background: var(--surface-2); border-left: 3px solid var(--ok); }
+body.admin .flash.error { border-left-color: var(--danger); }
 body.admin .card { background: var(--surface-2); border-radius: 8px; padding: 16px; margin: 12px 0; }
 body.admin .card.narrow { max-width: 420px; }
 body.admin label { display: block; font-size: 13px; color: var(--text-secondary); margin: 8px 0 2px; }
 body.admin label.check { display: flex; align-items: center; gap: 8px; color: var(--text-primary); }
 body.admin input[type=text], body.admin input[type=password], body.admin input[type=number], body.admin input[type=date], body.admin input[type=time], body.admin select, body.admin textarea { font: inherit; color: var(--text-primary); background: var(--surface-1); border: 1px solid var(--grid); border-radius: 6px; padding: 6px 8px; width: 100%; max-width: 100%; }
-body.admin input:focus-visible, body.admin select:focus-visible, body.admin textarea:focus-visible { outline: 2px solid var(--series-in); outline-offset: 1px; }
+body.admin input:focus-visible, body.admin select:focus-visible, body.admin textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 body.admin .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
 body.admin .row > div { flex: 1 1 140px; }
 body.admin .row label { margin-top: 0; }
-body.admin button.danger { color: var(--series-out); border-color: var(--series-out); }
+body.admin button.danger { color: var(--danger); border-color: var(--danger); }
 body.admin button { white-space: nowrap; }
 body.admin .tablewrap { max-height: none; overflow-x: auto; }
 body.admin table.admin td, body.admin table.admin th { text-align: left; vertical-align: middle; }
@@ -216,7 +222,7 @@ body.admin .nav-backdrop { display: none; }
   body.admin header .who a.sub { display: none; }
   body.admin .nav { position: fixed; top: 0; bottom: 0; left: 0; z-index: 30; width: min(280px, 82vw); flex-direction: column; gap: 0; margin: 0; padding: 72px 0 16px; overflow-y: auto; background: var(--surface-2); border-right: 1px solid var(--grid); font-size: 16px; transform: translateX(-100%); visibility: hidden; transition: transform .2s ease, visibility 0s linear .2s; }
   body.admin .nav a, body.admin .nav .nav-site { display: block; padding: 12px 24px; border-bottom: 0; border-left: 3px solid transparent; }
-  body.admin .nav a[aria-current="page"] { border-left-color: var(--series-bal); background: var(--surface-1); }
+  body.admin .nav a[aria-current="page"] { border-left-color: var(--accent); background: var(--surface-1); }
   body.admin .nav .nav-site { margin-top: 12px; border-top: 1px solid var(--grid); color: var(--text-muted); }
   body.admin.nav-open .nav { transform: none; visibility: visible; transition: transform .2s ease; }
   body.admin.nav-open .nav-backdrop { display: block; position: fixed; inset: 0; z-index: 20; background: rgba(0, 0, 0, .4); }
@@ -266,7 +272,7 @@ body.admin .s-chart { width: 100%; height: auto; display: block; touch-action: p
 body.admin .s-chart text.tick, body.admin .s-chart text.marklbl { fill: var(--text-muted); font-size: 11px; font-family: inherit; }
 body.admin .s-chart .grid { stroke: var(--grid); stroke-width: 1; }
 body.admin .s-chart .mark { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 3 3; }
-body.admin .s-chart .mark.dev { stroke: var(--series-bal); }
+body.admin .s-chart .mark.dev { stroke: var(--accent); }
 body.admin .s-chart .ln { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 body.admin .s-chart .ln.cur { stroke: var(--series-in); }
 body.admin .s-chart .ln.prev { stroke: var(--text-muted); stroke-dasharray: 6 4; }
@@ -336,7 +342,7 @@ body.admin .user-seen { font-size: 12px; color: var(--text-muted); margin-top: 2
 body.admin .pills { display: flex; flex-wrap: wrap; gap: 6px; }
 body.admin .pill { font-size: 12px; border-radius: 10px; padding: 2px 10px; background: var(--surface-1); color: var(--text-secondary); border: 1px solid var(--grid); }
 body.admin .pill.admin { color: var(--text-primary); }
-body.admin .pill.manage { border-color: var(--series-bal); }
+body.admin .pill.manage { border-color: var(--accent); }
 body.admin .user-edit { margin-top: 8px; }
 body.admin .user-edit summary { cursor: pointer; font-size: 13px; color: var(--text-secondary); width: fit-content; padding: 4px 0; }
 body.admin .user-edit[open] summary { margin-bottom: 6px; }
