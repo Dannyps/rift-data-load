@@ -57,7 +57,8 @@ function fail(int $status, string $error, string $hint = '', array $extra = [], 
 
 function base_url(): string
 {
-    return 'https://' . preg_replace('/[^a-z0-9.-]/i', '', $_SERVER['HTTP_HOST'] ?? 'rift-css.dannyps.net');
+    $https = ($_SERVER['HTTPS'] ?? '') === 'on' || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
+    return ($https ? 'https://' : 'http://') . preg_replace('/[^a-z0-9.:-]/i', '', $_SERVER['HTTP_HOST'] ?? 'rift-css.dannyps.net');
 }
 
 // ------------------------------------------------------------------ git (always as an argument array, never a shell string)
@@ -386,6 +387,11 @@ function commit_css(string $css, string $message): never
     $gone = array_values(array_diff($oldSelectors, $newSelectors));
     if ($gone) {
         $warnings[] = count($gone) . ' selector(s) of the previous version no longer exist; check that nothing lost its styling: ' . implode(' | ', array_slice($gone, 0, 25)) . (count($gone) > 25 ? ' | ...' : '');
+    }
+    if (count($oldSelectors) >= 20 && count($gone) > count($oldSelectors) / 2 && !isset($_GET['force'])) {
+        fail(422, 'The stylesheet was NOT saved: it would remove ' . count($gone) . ' of the ' . count($oldSelectors) . ' selectors of the current one.',
+            'That looks like a truncated or partial upload. Send the COMPLETE stylesheet. If you really mean to drop most of it, repeat the request with &force=1 added to the URL.',
+            ['would_remove' => array_slice($gone, 0, 25)]);
     }
     $lostProps = array_values(array_diff($oldProps, $newProps));
     if ($lostProps) {
