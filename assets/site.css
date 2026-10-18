@@ -763,6 +763,7 @@ body.admin .nav-backdrop { display: none; }
 
 /* ---- login (no menu): a centred, narrow column ---- */
 body.admin main:not(:has(#adminnav)) { max-width: 480px; }
+body.admin main:not(:has(#adminnav)) header .who a.sub { display: inline-flex; }  /* no menu to hold "Ver o site" here */
 body.admin main:not(:has(#adminnav)) h2 { margin-top: 8vh; }
 body.admin main:not(:has(#adminnav)) .card.narrow { max-width: none; padding: 24px; }
 body.admin main:not(:has(#adminnav)) .card button.primary { width: 100%; min-height: 42px; }
