@@ -77,7 +77,7 @@ function page(string $title, string $body, ?array $user, string $active = '', ar
         : '';
 
     echo '<!doctype html><html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-        . '<meta name="robots" content="noindex"><title>' . h($title) . ' · Administração RIFT</title>'
+        . '<meta name="robots" content="noindex"><link rel="icon" href="/favicon.ico" sizes="48x48"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><title>' . h($title) . ' · Administração RIFT</title>'
         . '<link rel="stylesheet" href="/assets/common.css"><link rel="stylesheet" href="/assets/admin.css"></head><body><main>'
         . '<header><div class="title">' . $toggle . '<h1>Administração</h1></div><div class="who"><a class="sub" href="/reunioes">Ver o site</a> ' . $who . '</div></header>'
         . $nav . $flashes . '<h2>' . h($title) . '</h2>' . $body
