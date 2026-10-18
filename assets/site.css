@@ -231,7 +231,7 @@ header > .sub::before { width: 16px; height: 16px; }
   .nav a[aria-current="page"] { box-shadow: inset 3px 0 0 var(--nav-accent); }
 }
 
-/* ---- pink section titles (charts page, meetings days, admin sections, footer) ---- */
+/* ---- section titles (charts page, meetings days, admin sections) ---- */
 .tiles::before, .tiles::after {
   grid-column: 1 / -1; display: block; padding: 0 0 0 18px;
   background: linear-gradient(var(--section), var(--section)) left center / 5px 78% no-repeat;  /* pink accent bar */
@@ -397,39 +397,27 @@ tbody tr:hover > td, tbody tr:hover > th { background: var(--surface-3); }
 .tablewrap { max-height: 460px; overflow: auto; background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
 #tablewrap { border-top: 0; border-radius: 0 0 var(--radius) var(--radius); }
 
-/* ---- footer: the long "about the data" notes, kept but set small and quiet, in columns ---- */
-footer {
-  display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px;
-  margin-top: 48px; color: var(--text-muted); font-size: 12px; line-height: 1.5;
-}
-@media (min-width: 721px) { footer { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (min-width: 1500px) { footer { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-footer::before {
-  content: "Notas sobre os dados";  /* CSS text: small heading of the notes */
-  grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding-left: 26px;
-  font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-secondary);
-  background: var(--ico-info-muted) left center / 18px 18px no-repeat;
-}
-/* each note is a compact card showing five lines; a longer one scrolls inside its card, and a soft accent shade at
-   the bottom (only while more text is below) says so. The shades use local/scroll backgrounds, so no script is needed. */
-footer p {
-  margin: 0; max-width: none; max-height: calc(5 * 18px + 26px); overflow: auto;  /* five lines, padding and border */
-  padding: 12px 14px; scrollbar-width: thin; border: 1px solid var(--border); border-radius: 12px;
-  background:
-    linear-gradient(var(--surface-1) 30%, transparent) center top / 100% 36px no-repeat local,
-    linear-gradient(transparent, var(--surface-1) 70%) center bottom / 100% 36px no-repeat local,
-    radial-gradient(farthest-side at 50% 0, color-mix(in srgb, var(--accent) 12%, transparent), transparent) center top / 100% 12px no-repeat scroll,
-    radial-gradient(farthest-side at 50% 100%, color-mix(in srgb, var(--accent) 12%, transparent), transparent) center bottom / 100% 12px no-repeat scroll,
-    var(--surface-1);
-}
-footer b { display: block; color: var(--text-primary); font-size: 12px; font-weight: 800; letter-spacing: .01em; }
-footer .footer-links { grid-column: 1 / -1; max-height: none; overflow: visible; margin: 4px 0 0; padding: 0; background: none; border: 0; font-size: 14px; }
+/* ---- footer: a thin rule and the link to the admin area (the explanatory notes are hidden, see the next block) ---- */
+footer { margin-top: 44px; padding-top: 12px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 12.5px; line-height: 1.5; }
+footer p { margin: 0; }
+footer .footer-links { margin: 0; font-size: 14px; }
 footer .footer-links a {
   display: inline-flex; align-items: center; gap: 8px; min-height: 36px;
   color: var(--accent); font-weight: 600; text-decoration: none; --i: var(--ico-lock);
 }
 footer .footer-links a::before { width: 16px; height: 16px; }
 footer .footer-links a:hover { color: var(--accent-hover); text-decoration: underline; }
+
+/* Hidden explanatory text
+   Briefing rule 8: text that only explains how to read the page (no data, no status, no action) may be hidden.
+   Hidden here, and nothing else:
+   - charts page and meetings page: the explanatory paragraphs of the footer, that is every footer p except
+     .footer-links (which keeps the link to the admin area);
+   - report dialog: the help line under "Assistência" (#h_assistencia, "Pré-preenchido com a contagem do contador;
+     corrija se for preciso.").
+   Kept on purpose: #reportIntro in the dialog (it warns that nothing is saved without a session) and every .hint on the
+   admin pages (each one states a format, warns about the effect of saving, or carries data such as a date). */
+footer p:not(.footer-links), body.reunioes #h_assistencia { display: none; }
 
 /* ---- motion: widgets rise in one after the other, marks grow from the baseline, small hover lifts.
    Everything here is skipped when the visitor asks for reduced motion. ---- */
@@ -439,13 +427,13 @@ footer .footer-links a:hover { color: var(--accent-hover); text-decoration: unde
 @keyframes grow-y { from { transform: scaleY(0); } }
 @keyframes grow-x { from { transform: scaleX(0); } }
 @media (prefers-reduced-motion: no-preference) {
-  .tile, .controls, #chart, #tablewrap, footer p { animation: rise .7s cubic-bezier(.2, .8, .2, 1) backwards; }
+  .tile, .controls, #chart, #tablewrap { animation: rise .7s cubic-bezier(.2, .8, .2, 1) backwards; }
   .tile:nth-child(2) { animation-delay: .07s; }
   .tile:nth-child(3) { animation-delay: .14s; }
   .tile:nth-child(4) { animation-delay: .21s; }
   .controls { animation-delay: .26s; }
   #chart { animation-delay: .32s; }
-  .tiles::before, .tiles::after, footer::before { animation: fade .8s backwards; }
+  .tiles::before, .tiles::after, footer { animation: fade .8s backwards; }
   .tile .value { animation: pop .8s .3s cubic-bezier(.2, .8, .2, 1) backwards; }
   .tile::after { transform-origin: left; animation: grow-x 1.1s .35s cubic-bezier(.2, .8, .2, 1) backwards; }
   #chart svg path { transform-box: view-box; transform-origin: 0 312px; animation: grow-y .9s .15s cubic-bezier(.2, .8, .2, 1) backwards; }
