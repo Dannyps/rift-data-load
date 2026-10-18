@@ -657,8 +657,8 @@ body.admin input[type="checkbox"]:hover { box-shadow: inset 0 0 0 1.5px var(--te
 body.admin input[type="checkbox"]:checked { background-color: var(--accent); background-image: var(--check-mark); box-shadow: none; }
 body.admin input[type="checkbox"]:focus-visible { outline: 2px solid var(--focus); outline-offset: -7px; }
 body.admin input[type="checkbox"]:disabled { opacity: .5; cursor: not-allowed; }
-body.admin input[type="text"], body.admin input[type="password"], body.admin input[type="number"], body.admin input[type="date"],
-body.admin input[type="time"], body.admin input[type="month"], body.admin select, body.admin textarea {
+body.admin input[type=text], body.admin input[type=password], body.admin input[type=number], body.admin input[type=date],
+body.admin input[type=time], body.admin input[type="month"], body.admin select, body.admin textarea {
   font: inherit; font-size: 14.5px; color: var(--text-primary); background: var(--surface-1);
   border: 1px solid var(--control-border); border-radius: var(--radius-sm);
   min-height: 40px; padding: 0 12px; width: 100%; max-width: 100%; transition: border-color .15s;
@@ -812,6 +812,7 @@ body.admin .s-cats span:nth-child(3) { --c: var(--series-4); --i: var(--ico-smil
 body.admin .s-cats span:nth-child(4) { --c: var(--series-bal); --i: var(--ico-check); }
 body.admin .s-cats b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
 body.admin .s-tw { overflow-x: auto; }
+body.admin .s-cards > .s-card:has(.s-tw) { grid-column: 1 / -1; }  /* a card holding a wide table spans the row */
 body.admin .s-table { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; margin-top: 10px; }
 body.admin .s-table th, body.admin .s-table td { position: static; padding: 8px 10px; border-bottom: 1px solid var(--grid); text-align: right; background: transparent; }
 body.admin .s-table th:first-child, body.admin .s-table td:first-child { text-align: left; padding-left: 0; }
@@ -885,7 +886,7 @@ body.admin .s-tablewrap summary:hover { color: var(--accent); }
   body.admin table.stack tr > :last-child { border-bottom: 0; }
   body.admin table.stack td[data-label]:not([data-label=""])::before, body.admin table.stack th[data-label]:not([data-label=""])::before { content: attr(data-label); color: var(--text-muted); font-size: 12.5px; font-weight: 600; text-align: left; flex: 0 0 auto; max-width: 45%; }
   body.admin table.stack td.has-field { flex-direction: column; align-items: stretch; justify-content: flex-start; text-align: left; }
-  body.admin table.stack td.has-field input[type="checkbox"] { width: 36px; align-self: flex-start; }
+  body.admin table.stack td.has-field input[type=checkbox] { width: 36px; align-self: flex-start; }
   body.admin table.stack td.has-field input, body.admin table.stack td.has-field select { width: 100%; min-width: 0; }
   body.admin table.stack td.actions-cell { justify-content: flex-start; }
   body.admin table.stack td .actions { justify-content: flex-start; }
