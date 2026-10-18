@@ -33,7 +33,7 @@ document.addEventListener('submit', function (e) {
   window.matchMedia('(min-width: 721px)').addEventListener('change', function (e) { if (e.matches) setOpen(false); });
 })();
 
-// Tables as cards on phones. The CSS (admin.css, max-width 720px) shows each row of a table.stack as a card; for that
+// Tables as cards on phones. The CSS (site.css, max-width 720px) shows each row of a table.stack as a card; for that
 // every cell needs its column name (data-label), copied here from the header. The table roles are set explicitly
 // because display:block on table elements makes some screen readers forget they are tables.
 (function () {

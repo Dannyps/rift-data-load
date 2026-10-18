@@ -87,7 +87,7 @@ Pages (admins): Reuniões (weekly meetings), Dias especiais (+ Planning Center s
 - Passwords: argon2id, at least 10 characters. An Apache `$apr1$` hash imported from `.htpasswd` works once and
   is upgraded at the first login. Five failed attempts per user (30 per IP) lock logins for 15 minutes.
 - On phones the admin tables (and the month table of the statistics page) become cards: one card per row with the column
-  name beside each value (`admin.js` copies the header text into `data-label`, `admin.css` does the layout; add
+  name beside each value (`admin.js` copies the header text into `data-label`, `site.css` does the layout; add
   `class="admin"` or `"stackable"` to a table to get it, and re-run `stackTables(el)` after drawing one dynamically).
 - On phones (up to 720 px) the admin navigation is a slide-in sidebar opened by a menu button (closes with Escape, the
   backdrop, a link or a wider screen); on wider screens it is the top bar.
@@ -118,6 +118,35 @@ It follows the folders Porto and Young Adults & Youth (`src/pco.php`: `PCO_ROOT_
   wall-clock times, so the sync reads them in that zone and treats them as Lisbon time.
 - `php pco_sync.php --dry-run` shows what would change; `--backfill-days=70` also reads the people of older plans;
   `php tests/pco_test.php` runs the parser tests. If the sync has not worked for 6 hours the monitor emails you.
+
+## Styling and the CSS preview (`assets/site.css`)
+
+All styling is ONE file, `assets/site.css`: design tokens (colours, light/dark), shared rules, then the meetings page
+(every rule starts with `body.reunioes`) and the admin area (`body.admin`). The JavaScript builds markup with the existing
+class names, so a restyle changes the CSS only. The vhost sends `Cache-Control: no-cache` for `*.css` (revalidated, never stale).
+
+**Preview for a CSS rework** (`https://rift-css.dannyps.net`, one label under the main domain; the Cloudflare record is
+DNS only, nothing is cached): a STATIC copy of the site in its own git clone (`/media/ssd/www/rift-css`, branch `css-rework`,
+owned by www-data) fed by invented JSON in `fixtures/` (`tools/make_fixtures.py`) and static admin pages captured from a
+throwaway database (`fixtures/admin/`, `tools/capture_admin_samples.py`). No PHP, no database, no secrets; the device endpoint,
+`/admin` writes and all source directories answer 404/403. The person doing the rework (or their Claude) reads
+`https://rift-css.dannyps.net/_edit/` (Markdown briefing, also `/llms.txt`) and replaces the stylesheet with
+`PUT /_edit/css` + `Authorization: Bearer <token>` (token: `/etc/rift-data-load/css-token`). Every save is a git commit on
+`css-rework`; `GET /_edit/log`, `POST /_edit/revert?to=<commit>`. The API (`deploy/css-preview/api/index.php`, installed
+read-only under `/usr/local/lib/rift-css-preview`) validates the CSS (balanced, UTF-8, <= 256 KB, no `@import`/external
+`url()`), refuses uploads that drop more than half the selectors unless `&force=1`, warns about lost selectors/tokens, and
+serialises saves with a lock. Install: `deploy/css-preview/install.sh` (dry run by default; `--base-branch`, `--docroot`,
+`--certbot`). Keep it current with `deploy/css-preview/sync-from-main.sh [--docroot DIR] [BRANCH]` (merges main into
+`css-rework` via a bundle, because the clone and this repository have different owners). Bring the result home with
+`deploy/css-preview/promote.sh [--docroot DIR]` (fetches `css-rework` as a local branch and checks that only
+`assets/site.css` changed), review, run the screenshot comparison, then merge.
+
+**Regression screenshots** (`tools/shots.py`, needs Playwright and a Chromium): `shoot` takes 82 screenshots of every page
+(phone/desktop, light/dark, meeting states, report dialog, admin drawer) with fixture data and a frozen clock, so the same CSS
+gives byte-identical PNGs; `compare DIR_A DIR_B` lists the pages that differ. Admin pages come from a local server on a
+THROWAWAY database: `docker run postgres:16-alpine`, `tools/fake_data.py | psql`, a `db.ini` pointed to by `RIFT_DB_CONFIG`,
+`RIFT_DB_CONFIG=... php -S 127.0.0.1:8099 -t . tools/dev_router.php` (same clean URLs as the vhost), a sample admin inserted with a
+password hash, then `shots.py login`. Never aim these tools at the real database.
 
 ## Configuration
 

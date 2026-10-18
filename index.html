@@ -7,7 +7,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Contador de pessoas RIFT</title>
-<link rel="stylesheet" href="assets/common.css">
+<link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
 <main>
@@ -18,16 +18,16 @@
   <nav class="nav" aria-label="Páginas"><a href="/reunioes">Reuniões</a><a href="/" aria-current="page">Gráficos</a></nav>
 
   <section class="tiles" aria-label="Totais do período selecionado">
-    <div class="tile"><div class="label"><span class="swatch" style="background:var(--series-in)"></span>Entradas</div><div class="value" id="tin">–</div><div class="note" id="rangeNote1"></div></div>
-    <div class="tile"><div class="label"><span class="swatch" style="background:var(--series-out)"></span>Saídas</div><div class="value" id="tout">–</div><div class="note" id="rangeNote2"></div></div>
-    <div class="tile"><div class="label"><span class="swatch" style="background:var(--series-bal)"></span>Saldo atual</div><div class="value" id="tbal">–</div><div class="note">pessoas dentro (estimativa)</div></div>
+    <div class="tile"><div class="label"><span class="swatch in"></span>Entradas</div><div class="value" id="tin">–</div><div class="note" id="rangeNote1"></div></div>
+    <div class="tile"><div class="label"><span class="swatch out"></span>Saídas</div><div class="value" id="tout">–</div><div class="note" id="rangeNote2"></div></div>
+    <div class="tile"><div class="label"><span class="swatch bal"></span>Saldo atual</div><div class="value" id="tbal">–</div><div class="note">pessoas dentro (estimativa)</div></div>
     <div class="tile"><div class="label">Última leitura</div><div class="value" id="tlast">–</div><div class="note" id="tlastnote"></div></div>
   </section>
 
   <div class="controls">
     <div class="ranges" role="group" aria-label="Vista" id="views"></div>
     <div class="ranges" role="group" aria-label="Período" id="ranges"></div>
-    <div class="legend" id="legend"><span><i class="swatch" style="background:var(--series-in)"></i>Entradas</span><span><i class="swatch" style="background:var(--series-out)"></i>Saídas</span></div>
+    <div class="legend" id="legend"><span><i class="swatch in"></i>Entradas</span><span><i class="swatch out"></i>Saídas</span></div>
     <button id="toggle" aria-pressed="false">Tabela</button>
   </div>
 
@@ -57,8 +57,8 @@ const LOCALE = 'pt-PT';
 const RANGES = { '1h': 'Última hora', '6h': '6 horas', '24h': '24 horas', '7d': '7 dias', '30d': '30 dias' };
 const VIEWS = { counts: 'Contagens', balance: 'Saldo' };
 const SERIES_BY_VIEW = {
-  counts: [ { key: 'in', name: 'Entradas', css: '--series-in' }, { key: 'out', name: 'Saídas', css: '--series-out' } ],
-  balance: [ { key: 'balance', name: 'Saldo', css: '--series-bal' } ],
+  counts: [ { key: 'in', name: 'Entradas', css: '--series-in', cls: 'in' }, { key: 'out', name: 'Saídas', css: '--series-out', cls: 'out' } ],
+  balance: [ { key: 'balance', name: 'Saldo', css: '--series-bal', cls: 'bal' } ],
 };
 const W = 960, H = 340, M = { l: 44, r: 16, t: 12, b: 28 };
 
@@ -117,7 +117,7 @@ function render() {
   const chart = $('chart');
   chart.querySelector('svg')?.remove();
   if (!pts.length) {
-    chart.insertAdjacentHTML('afterbegin', '<svg viewBox="0 0 1 1" role="img" aria-label="Sem dados" style="height:0"></svg><div class="empty">Ainda não há dados neste período.</div>');
+    chart.insertAdjacentHTML('afterbegin', '<svg viewBox="0 0 1 1" role="img" aria-label="Sem dados" class="nodata"></svg><div class="empty">Ainda não há dados neste período.</div>');
     return;
   }
   chart.querySelector('.empty')?.remove();
@@ -162,7 +162,7 @@ function render() {
     hover.querySelector('line').setAttribute('x1', cx); hover.querySelector('line').setAttribute('x2', cx);
     hover.querySelectorAll('circle').forEach(c => { c.setAttribute('cx', cx); c.setAttribute('cy', y(p[c.dataset.k])); });
     tip.innerHTML = `<b>${fmtTime(p.t, b)}</b>` + SERIES.map(se =>
-      `<div><span class="k"><i class="swatch" style="background:var(${se.css})"></i>${se.name}</span><span>${p[se.key]}</span></div>`).join('');
+      `<div><span class="k"><i class="swatch ${se.cls}"></i>${se.name}</span><span>${p[se.key]}</span></div>`).join('');
     tip.style.display = 'block';
     const left = cx / W * r.width;
     tip.style.left = Math.min(Math.max(left + 12, 0), r.width - tip.offsetWidth) + 'px';
