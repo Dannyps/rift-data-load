@@ -20,11 +20,26 @@ Base URL: `{{BASE}}`   (this document: `{{BASE}}/_edit/`, also at `{{BASE}}/llms
 4. Keep it **usable on phones** (design for 390 px wide AND 1200 px). Existing breakpoints: 720 px (admin menu becomes a
    slide-in drawer, tables become cards, report dialog is pinned above the keyboard) and 520 px.
 5. Accessibility floor: text contrast at least 4.5:1 (3:1 for large text and UI borders), a visible `:focus-visible`
-   outline on every interactive element, tap targets of at least 36 px, honour `prefers-reduced-motion`, never hide content.
+   outline on every interactive element, tap targets of at least 36 px, honour `prefers-reduced-motion`, and never remove information or controls
+   (rule 8 says what may be hidden).
 6. File size limit {{MAX_KB}} KB. Do not delete rules you do not understand; the API warns when selectors disappear, and
    refuses an upload that drops more than half of the existing selectors (it looks truncated) unless you add `&force=1`.
 7. Contrast: compute it (WCAG relative luminance: L = 0.2126 R + 0.7152 G + 0.0722 B on linearised sRGB channels, ratio =
    (L1 + 0.05) / (L2 + 0.05)) rather than judging by eye; check text on `--surface-1` AND `--surface-2`, in both schemes.
+8. Hiding text. You MAY hide text that is **purely explanatory**: it explains how to read the page, but holds no data, no
+   status and no action. Typical examples: the explanatory paragraphs in the page footer (`footer p`, such as "O que
+   significam os valores" and "Saldo"), and `.hint` help lines on admin pages and in the report dialog. You MAY NOT hide:
+   - data and its labels: counts, times, names, the "por anunciar" placeholders, tile titles and their `.note` lines, table
+     headings, form labels, chart axes and legends;
+   - status: `.state` ("Ainda não começou", "A decorrer ...", "Terminou às ..."), the "hoje" badge, "dados parciais" notes;
+   - messages: `.flash`, `.err`, `.form-error`, `#toast`, anything that reports an error or a result;
+   - controls and navigation, including the `footer .footer-links` link to the admin area, and the text of a button;
+   - a `.hint` that states a required format (for example HH:MM) or warns about the consequence of an action;
+   - screen-reader-only text (`.sr`).
+   Never hide headings (`h1`, `h2`, `h3`). Hide by a selector that targets only the explanatory element (so the `footer`
+   itself and its links stay), put all of it in one commented block, `/* Hidden explanatory text */`, so the owner can review
+   it at a glance, and list in your final report exactly what you hid. If you are unsure whether a text is explanatory,
+   keep it visible and ask the owner.
 
 ## The API (plain HTTP; reading is open, writing needs the token)
 
