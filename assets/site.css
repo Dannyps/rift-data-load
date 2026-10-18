@@ -353,9 +353,10 @@ footer .footer-links a:hover { color: var(--accent-hover); text-decoration: unde
   #chart { padding: 14px 12px 10px 8px; }
   /* the chart is drawn 960 units wide: scale its labels up so they stay readable on a phone;
      the 7-day range has long "date, hour" labels, so they stay smaller there to avoid overlapping */
+  #chart { padding-bottom: 16px; }
   #chart .grid text { font-size: 28px; }
-  #chart svg > text { font-size: 26px; }
-  body:has(#ranges [data-k="7d"][aria-pressed="true"]) #chart svg > text { font-size: 17px; }
+  #chart svg > text { font-size: 24px; transform: translateY(12px); }
+  body:has(#ranges [data-k="7d"][aria-pressed="true"]) #chart svg > text { font-size: 17px; transform: translateY(6px); }
   footer { padding: 18px 18px 6px; }
   footer::before { position: static; display: block; margin-bottom: 10px; }
 }
@@ -688,13 +689,13 @@ body.admin .hint + .actions { margin-top: 16px; }
 body.admin .tablewrap { max-height: none; overflow-x: auto; margin-top: 12px; }
 body.admin table.admin th { position: static; }
 body.admin table.admin td, body.admin table.admin th { text-align: left; vertical-align: middle; padding: 12px; }
-body.admin table.admin td:first-child, body.admin table.admin th:first-child { padding-left: 16px; }
-body.admin table.admin td:last-child, body.admin table.admin th:last-child { padding-right: 16px; }
 body.admin table.admin td form { margin: 0; }
 body.admin table.admin input, body.admin table.admin select { min-width: 60px; }
 body.admin table.admin input[type="checkbox"] { min-width: 0; }
 body.admin table.admin td .hint { margin-top: 2px; font-size: 12.5px; }
 @media (min-width: 721px) {
+  body.admin table.admin td:first-child, body.admin table.admin th:first-child { padding-left: 16px; }
+  body.admin table.admin td:last-child, body.admin table.admin th:last-child { padding-right: 16px; }
   /* give each kind of field a sensible width so names and dates are not squeezed */
   body.admin table.admin td:first-child { min-width: 150px; }
   body.admin table.admin input[type="text"] { min-width: 110px; }
@@ -902,7 +903,7 @@ body.admin .s-tablewrap summary:hover { color: var(--accent); }
   body.admin .s-tw { overflow-x: visible; }
   body.admin table.s-table.stack tr { background: var(--surface-3); box-shadow: none; padding: 2px 12px; }
   body.admin table.s-table.stack th:first-child, body.admin table.s-table.stack td:first-child { padding-left: 0; }
-  body.admin .s-chart text.tick, body.admin .s-chart text.marklbl { font-size: 20px; }
+  body.admin .s-chart text.tick, body.admin .s-chart text.marklbl { font-size: 16px; }
 }
 
 /* ---- users page ---- */
