@@ -1,6 +1,7 @@
 <?php
 
-const DB_CONFIG = '/etc/rift-data-load/db.ini';
+// RIFT_DB_CONFIG is for tests and the admin sample capture only (a throwaway database).
+define('DB_CONFIG', getenv('RIFT_DB_CONFIG') ?: '/etc/rift-data-load/db.ini');
 
 function db_connect()
 {

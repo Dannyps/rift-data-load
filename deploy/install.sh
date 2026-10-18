@@ -23,6 +23,7 @@
 # Not done here (needs a person): pointing the DNS name at the host, installing docker itself, creating the
 # first admin user, and setting the URL and token in the people counter. They are printed at the end.
 set -euo pipefail
+shopt -s lastpipe   # the last command of a pipeline (put) runs in this shell, so CHANGES/WROTE are kept
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 APPLY=0 DOMAIN=rift.dannyps.net APP_DIR=$(dirname "$HERE") DB_DIR= TOKEN_FILE= PCO_INI= CERTBOT_EMAIL= SYSTEM=1
@@ -119,7 +120,7 @@ if (( SYSTEM )); then
 	if [[ ! -f /usr/lib/apache2/modules/libphp.so ]] && ! ls /usr/lib/apache2/modules/libphp*.so >/dev/null 2>&1; then missing+=(libapache2-mod-php); fi
 	dpkg -s python3-certbot-apache >/dev/null 2>&1 || missing+=(python3-certbot-apache)
 	if ((${#missing[@]})); then run apt-get install -y "${missing[@]}"; else say "   everything needed is installed"; fi
-	for m in rewrite ssl; do
+	for m in rewrite ssl headers; do
 		if apache2ctl -M 2>/dev/null | grep -q "${m}_module"; then say "   apache module $m enabled"; else run a2enmod "$m"; fi
 	done
 else

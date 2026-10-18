@@ -7,80 +7,9 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
 <title>Reuniões · Contador de pessoas RIFT</title>
-<link rel="stylesheet" href="assets/common.css">
-<style>
-  .weekbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin: 20px 0 4px; }
-  .weekbar .label { font-weight: 600; }
-  .weekbar .buttons { display: flex; gap: 4px; }
-  .day { margin-top: 24px; }
-  .day h2 { font-size: 15px; font-weight: 600; margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
-  .dayname { display: inline-block; }
-  .dayname::first-letter { text-transform: uppercase; }
-  .badge { font-size: 11px; font-weight: 500; text-transform: none; color: var(--text-secondary); background: var(--surface-2); border-radius: 10px; padding: 1px 8px; }
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
-  .card { background: var(--surface-2); border-radius: 8px; padding: 12px 16px; display: flex; flex-direction: column; gap: 2px; }
-  .card .title { font-size: 13px; color: var(--text-secondary); display: flex; justify-content: space-between; gap: 8px; }
-  .card .time { font-variant-numeric: tabular-nums; }
-  .card .count { font-size: 40px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
-  .card .count.unknown { font-size: 22px; font-weight: 500; color: var(--text-muted); line-height: 2; }
-  .card .state { font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
-  .card .note { font-size: 12px; color: var(--text-muted); }
-  .people { margin: 10px 0 0; padding-top: 8px; border-top: 1px solid var(--grid); display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 13px; }
-  .people dt { color: var(--text-muted); }
-  .people dd { margin: 0; color: var(--text-primary); overflow-wrap: anywhere; }
-  .people dd.tbd { color: var(--text-muted); font-style: italic; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--series-bal); display: inline-block; animation: pulse 2s ease-in-out infinite; }
-  .card.event { border-left: 3px solid var(--series-out); }
-  @keyframes pulse { 50% { opacity: .35; } }
-  @media (prefers-reduced-motion: reduce) { .dot { animation: none; } }
-  .card { position: relative; }
-  .card .title { padding-right: 44px; }
-  .info-btn { position: absolute; top: 6px; right: 6px; width: 36px; height: 36px; padding: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
-    color: var(--text-secondary); background: var(--surface-1); }
-  .link-btn { position: absolute; top: 48px; right: 6px; width: 36px; height: 36px; padding: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
-    color: var(--text-secondary); background: var(--surface-1); }
-  .link-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
-  .card { scroll-margin-top: 16px; }
-  .card.linked { outline: 2px solid var(--series-in); outline-offset: 2px; }
-  #toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--text-primary); color: var(--surface-1); padding: 8px 14px; border-radius: 8px; font-size: 14px; z-index: 10; opacity: 0; pointer-events: none; transition: opacity .15s; }
-  #toast.show { opacity: 1; }
-  .info-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
-  .info-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
-  .info-btn:disabled { opacity: .35; cursor: not-allowed; }
-  .info-btn:disabled:hover { color: var(--text-secondary); border-color: var(--grid); }
-  dialog#report { width: min(600px, calc(100vw - 24px)); max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); padding: 0; border: 1px solid var(--grid); border-radius: 12px; background: var(--surface-1); color: var(--text-primary); overflow: hidden; }
-  /* Phones: pin the dialog to the VISIBLE viewport (JS keeps --vvh/--vvtop in sync with visualViewport), so the
-     on-screen keyboard never covers the focused field or the buttons; the body scrolls inside. */
-  @media (max-width: 720px) {
-    dialog#report { position: fixed; inset: auto; left: 8px; right: 8px; width: auto; margin: 0; top: calc(var(--vvtop, 0px) + 8px); max-height: calc(var(--vvh, 100dvh) - 16px); }
-  }
-  dialog#report::backdrop { background: rgba(0, 0, 0, .5); }
-  dialog#report[open] { display: flex; flex-direction: column; }
-  .dlg-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 16px 8px 20px; }
-  .dlg-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
-  .dlg-head .sub { margin-top: 2px; }
-  .dlg-close { width: 36px; height: 36px; padding: 0; border-radius: 50%; flex: none; }
-  .dlg-body { padding: 4px 20px 20px; overflow-y: auto; }
-  .dlg-body fieldset { border: 0; padding: 0; margin: 12px 0 0; min-width: 0; }
-  .dlg-body legend { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; padding: 0; }
-  .field { margin-top: 10px; }
-  .field label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 3px; }
-  .field input { font: inherit; width: 100%; color: var(--text-primary); background: var(--surface-2); border: 1px solid var(--grid); border-radius: 6px; padding: 8px 10px; }
-  .field input[aria-invalid="true"] { border-color: var(--series-out); }
-  .field input:focus-visible, #reportText:focus-visible { outline: 2px solid var(--series-in); outline-offset: 1px; }
-  .field .hint { font-size: 12px; color: var(--text-muted); margin: -1px 0 4px; }
-  .field .err { color: var(--series-out); font-size: 12px; margin-top: 2px; }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
-  @media (max-width: 520px) { .grid2 { grid-template-columns: 1fr; } }
-  .dlg-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 16px; }
-  button.primary { background: var(--text-primary); color: var(--surface-1); border-color: var(--text-primary); }
-  #reportOut { margin-top: 18px; }
-  #reportText { width: 100%; min-height: 6em; font: 14px/1.5 system-ui, sans-serif; color: var(--text-primary); background: var(--surface-2); border: 1px solid var(--grid); border-radius: 6px; padding: 10px; resize: vertical; }
-  .form-error { color: var(--series-out); font-size: 13px; margin-top: 10px; }
-  .empty { padding: 48px 0; text-align: center; color: var(--text-muted); }
-</style>
+<link rel="stylesheet" href="assets/site.css">
 </head>
-<body>
+<body class="reunioes">
 <main>
   <header>
     <h1>Contador de pessoas RIFT</h1>

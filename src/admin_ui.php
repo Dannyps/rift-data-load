@@ -42,7 +42,7 @@ function page(string $title, string $body, ?array $user, string $active = '', ar
     header('X-Frame-Options: DENY');
     header('X-Content-Type-Options: nosniff');
     header('Referrer-Policy: same-origin');
-    header("Content-Security-Policy: default-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'; form-action 'self'");
+    header("Content-Security-Policy: default-src 'self'; style-src 'self'; img-src 'self' data:; script-src 'self'; frame-ancestors 'none'; form-action 'self'");
 
     $nav = $toggle = '';
     if ($user) {
@@ -78,7 +78,7 @@ function page(string $title, string $body, ?array $user, string $active = '', ar
 
     echo '<!doctype html><html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
         . '<meta name="robots" content="noindex"><title>' . h($title) . ' · Administração RIFT</title>'
-        . '<link rel="stylesheet" href="/assets/common.css"><link rel="stylesheet" href="/assets/admin.css"></head><body><main>'
+        . '<link rel="stylesheet" href="/assets/site.css"></head><body class="admin"><main>'
         . '<header><div class="title">' . $toggle . '<h1>Administração</h1></div><div class="who"><a class="sub" href="/reunioes">Ver o site</a> ' . $who . '</div></header>'
         . $nav . $flashes . '<h2>' . h($title) . '</h2>' . $body
         . '</main><script src="/assets/admin.js"></script>'
