@@ -41,6 +41,8 @@ function week_start(string $day): string
 /**
  * The services scheduled in the week from $sunday: a date with special_days rows uses only those,
  * otherwise the active weekly services for its weekday. Windows are naive UTC (DST handled by Postgres).
+ * Meetings already frozen in service_snapshots stay in the list even when the schedule no longer has them
+ * (weekly meeting deactivated/deleted/moved, special day removed): history must not change with the schedule.
  */
 function scheduled_services($con, string $sunday): array
 {
@@ -53,8 +55,14 @@ function scheduled_services($con, string $sunday): array
             SELECT d.day, v.name, v.start_time, v.duration_min
             FROM days d JOIN services v ON v.weekday = extract(dow FROM d.day) AND v.active
             WHERE NOT EXISTS (SELECT 1 FROM specials sp WHERE sp.day = d.day)
-        ), all_services AS (
+        ), planned AS (
             SELECT *, true AS special FROM specials UNION ALL SELECT *, false FROM weekly
+        ), kept AS (
+            SELECT n.day, n.name, n.start_time, (extract(epoch FROM n.window_end - n.window_start) / 60)::int AS duration_min, false AS special
+            FROM service_snapshots n JOIN days USING (day)
+            WHERE n.frozen AND NOT EXISTS (SELECT 1 FROM planned p WHERE p.day = n.day AND p.start_time = n.start_time)
+        ), all_services AS (
+            SELECT * FROM planned UNION ALL SELECT * FROM kept
         )
         SELECT day, name, start_time, duration_min, special,
                ((day + start_time) AT TIME ZONE $2) AT TIME ZONE 'UTC' AS window_start,
@@ -415,6 +423,10 @@ function week_view($con, DateTimeImmutable $now, string $sunday, array $services
     foreach (pg_fetch_all(pg_query_params($con, "SELECT * FROM event_snapshots WHERE day BETWEEN $1::date AND $1::date + 6", [$sunday])) ?: [] as $r) {
         $events[$r['day']] = $r;
     }
+    $reports = [];
+    foreach (pg_fetch_all(pg_query_params($con, "SELECT day, start_time, assistencia, kids, auditorio, adultos_fora FROM meeting_reports WHERE day BETWEEN $1::date AND $1::date + 6", [$sunday])) ?: [] as $r) {
+        $reports[$r['day'] . ' ' . $r['start_time']] = $r;
+    }
 
     $people = week_people($con, $sunday, $services);
 
@@ -437,6 +449,13 @@ function week_view($con, DateTimeImmutable $now, string $sunday, array $services
             $count = $row['corrected_peak'] !== null ? (int)$row['corrected_peak'] : ($row['peak'] !== null ? (int)$row['peak'] : null);
         }
 
+        // With a saved report the card shows everybody on site: assistência (report > correction > counter)
+        // + children in Kids + children in the auditorium + adults outside the doors. 'count' stays the counter value.
+        $total = null;
+        if ($status !== 'unknown' && ($rep = $reports[$s['day'] . ' ' . $s['start_time']] ?? null)) {
+            $total = (int)$rep['assistencia'] + (int)$rep['kids'] + (int)$rep['auditorio'] + (int)$rep['adultos_fora'];
+        }
+
         $days[$s['day']]['services'][] = [
             'name' => $s['name'],
             'time' => substr($s['start_time'], 0, 5),
@@ -444,6 +463,7 @@ function week_view($con, DateTimeImmutable $now, string $sunday, array $services
             'end' => iso($s['window_end']),
             'status' => $status,
             'count' => $count,
+            'total' => $total,
             'partial' => $status !== 'unknown' && $row && $row['partial'] === 't',
             'special' => $s['special'] === 't',
             'people' => $people[$s['day'] . ' ' . substr($s['start_time'], 0, 5)] ?? null,

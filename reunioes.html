@@ -195,7 +195,10 @@ function serviceCard(s, date) {
     count = '<div class="count unknown">Desconhecido</div>';
     state = '<div class="state">Ainda não começou</div>';
   } else {
-    count = s.count === null ? '<div class="count unknown">Sem dados</div>' : `<div class="count">${s.count.toLocaleString(LOCALE)}</div>`;
+    // a saved report makes the card show everybody on site (see week_view in src/services.php)
+    const shown = s.total ?? s.count;
+    count = shown === null ? '<div class="count unknown">Sem dados</div>' : `<div class="count">${shown.toLocaleString(LOCALE)}</div>`;
+    if (s.total !== null && s.total !== undefined) count += '<div class="note">Assistência + crianças no Kids + crianças no auditório + adultos fora das portas</div>';
     state = s.status === 'running'
       ? '<div class="state"><span class="dot"></span>A decorrer · o valor ainda pode subir</div>'
       : `<div class="state">Terminou às ${hhmm(s.end)}</div>`;
@@ -306,17 +309,29 @@ const fullDateFmt = new Intl.DateTimeFormat(LOCALE, { weekday: 'long', day: 'num
 /**
  * The report text for a meeting card or an event card. card: {kind: 's'|'e', name, time, date, start, end, count}.
  * values (meetings): {voluntarios, ..., decisoes, mc, oferta, lider, pregacao}, already validated.
- * Pure function: WhatsApp-style *bold* labels, one line per field.
+ * Pure function: plain text, one line per field, in the order of the spec (date - time, counts, Total, names).
  */
 function buildReport(card, values) {
   const date = fullDateFmt.format(dateOf(card.date));
   if (card.kind === 'e') {
     return [`*Evento · ${date} · ${card.start}–${card.end}*`, `*Pessoas (pico):* ${card.count}`].join('\n');
   }
-  const title = `${card.name}${card.name.includes(card.time) ? '' : ' · ' + card.time} · ${date}`;
-  const lines = [`*${title}*`];
-  for (const [id, label] of REPORT_NUMBERS) lines.push(`*${label}:* ${parseInt(values[id], 10)}`);
-  for (const [id, label] of REPORT_NAMES) lines.push(`*${label}:* ${values[id].replace(/\s+/g, ' ').trim()}`);
+  const n = id => parseInt(values[id], 10);
+  const name = id => values[id].replace(/\s+/g, ' ').trim();
+  const [y, m, d] = card.date.split('-');
+  // Hillsong Kids = children/babies in the auditorium + children/babies in Kids
+  const hk = n('auditorio') + n('kids');
+  // Total = same as the card: assistência + Kids + auditório + adultos fora das portas (voluntários and visitantes are not added)
+  const lines = [
+    `${d}.${m}.${y.slice(2)} - ${card.time}`,
+    `Assistência: ${n('assistencia')}`,
+    `Visitantes: ${n('visitantes')}`,
+    `Hillsong Kids: ${hk}`,
+    `Voluntários: ${n('voluntarios')}`,
+    `Total: ${n('assistencia') + hk + n('adultos')}`,
+    `Decisões: ${n('decisoes')}`,
+  ];
+  for (const [id, label] of REPORT_NAMES) lines.push(`${label}: ${name(id)}`);
   return lines.join('\n');
 }
 
