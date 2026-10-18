@@ -824,6 +824,7 @@ body.admin .nav-backdrop { display: none; }
 @media (max-width: 720px) {
   body.admin .menu-toggle { display: inline-flex; }
   body.admin header .who a.sub { display: none; }
+  body.admin header { margin-bottom: 22px; }  /* the menu is a drawer here, so nothing separates the bar from the page */
   body.admin .nav {
     position: fixed; top: 0; bottom: 0; left: 0; z-index: 30; width: min(300px, 84vw);
     flex-direction: column; flex-wrap: nowrap; gap: 4px; margin: 0; padding: 84px 12px 16px; overflow-y: auto;
