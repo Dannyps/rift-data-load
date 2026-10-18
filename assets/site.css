@@ -399,21 +399,30 @@ tbody tr:hover > td, tbody tr:hover > th { background: var(--surface-3); }
 
 /* ---- footer: the long "about the data" notes, kept but set small and quiet, in columns ---- */
 footer {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 12px;
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px;
   margin-top: 48px; color: var(--text-muted); font-size: 12px; line-height: 1.5;
 }
+@media (min-width: 721px) { footer { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1500px) { footer { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 footer::before {
   content: "Notas sobre os dados";  /* CSS text: small heading of the notes */
   grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding-left: 26px;
   font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-secondary);
   background: var(--ico-info-muted) left center / 18px 18px no-repeat;
 }
-/* each note is a compact card; a long one scrolls inside its card instead of growing the page */
+/* each note is a compact card showing five lines; a longer one scrolls inside its card, and a soft accent shade at
+   the bottom (only while more text is below) says so. The shades use local/scroll backgrounds, so no script is needed. */
 footer p {
-  margin: 0; max-width: none; max-height: 118px; overflow: auto; padding: 12px 14px; scrollbar-width: thin;
-  background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+  margin: 0; max-width: none; max-height: calc(5 * 18px + 24px); overflow: auto;
+  padding: 12px 14px; scrollbar-width: thin; border: 1px solid var(--border); border-radius: 12px;
+  background:
+    linear-gradient(var(--surface-1) 30%, transparent) center top / 100% 36px no-repeat local,
+    linear-gradient(transparent, var(--surface-1) 70%) center bottom / 100% 36px no-repeat local,
+    radial-gradient(farthest-side at 50% 0, color-mix(in srgb, var(--accent) 22%, transparent), transparent) center top / 100% 12px no-repeat scroll,
+    radial-gradient(farthest-side at 50% 100%, color-mix(in srgb, var(--accent) 22%, transparent), transparent) center bottom / 100% 12px no-repeat scroll,
+    var(--surface-1);
 }
-footer b { display: block; margin-bottom: 2px; color: var(--text-primary); font-size: 12.5px; font-weight: 800; }
+footer b { display: block; color: var(--text-primary); font-size: 12px; font-weight: 800; letter-spacing: .01em; }
 footer .footer-links { grid-column: 1 / -1; max-height: none; overflow: visible; margin: 4px 0 0; padding: 0; background: none; border: 0; font-size: 14px; }
 footer .footer-links a {
   display: inline-flex; align-items: center; gap: 8px; min-height: 36px;
@@ -501,7 +510,7 @@ body.reunioes .day h2 {
   background: linear-gradient(var(--section), var(--section)) left center / 5px 80% no-repeat;  /* pink accent bar */
   color: var(--text-primary); font-size: 24px; font-weight: 800; letter-spacing: -.025em; line-height: 1.2;
 }
-body.reunioes .day h2::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+body.reunioes .day h2::after { content: ""; flex: 1; height: 1px; background: color-mix(in srgb, var(--text-muted) 28%, transparent); }
 body.reunioes .dayname { display: inline-block; }
 body.reunioes .dayname::first-letter { text-transform: uppercase; }
 body.reunioes .badge {
