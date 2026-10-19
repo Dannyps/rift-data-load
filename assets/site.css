@@ -214,6 +214,12 @@ header > .sub::before { width: 16px; height: 16px; }
 .nav a[href$="/palavra-passe"] { --i: var(--ico-key); }
 .nav a[href$="/registo"] { --i: var(--ico-list); }
 .nav a.nav-site { --i: var(--ico-external); }
+/* public pages: the live page ("/", the home) comes first in the menu and carries a pulsing green dot */
+body:not(.admin) .nav::before { order: -2; }
+body:not(.admin) .nav a[href="/"] { order: -1; }
+body:not(.admin) .nav a[href="/"]::after {
+  content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: #34d399; box-shadow: 0 0 0 3px rgba(52, 211, 153, .22);
+}
 
 @media (min-width: 1024px) {
   body:has(main > nav.nav) { padding-left: calc(var(--sidebar) + var(--gutter)); }
@@ -540,7 +546,7 @@ footer p:not(.footer-links), body.reunioes #h_assistencia { display: none; }
   .tile:hover { transform: translateY(-3px); }
   .tile:nth-child(n+3):hover { transform: none; }  /* the display and its footer stay put */
   .tile:nth-child(3) .value { animation: pop .8s .3s cubic-bezier(.2, .8, .2, 1) backwards, glow 3.2s 1.2s ease-in-out infinite; }
-  .tile:nth-child(3)::after { animation: pulse-live 1.8s ease-out infinite; }
+  .tile:nth-child(3)::after, body:not(.admin) .nav a[href="/"]::after { animation: pulse-live 1.8s ease-out infinite; }
   .nav a:hover { transform: translateX(2px); }
   button:active:not(:disabled) { transform: scale(.97); }
 }
