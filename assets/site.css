@@ -743,6 +743,14 @@ body.reunioes .card:has(.info-btn:disabled) .count::before { width: 16px; height
   }
   body.reunioes .people { align-self: center; margin: 6px 6px 6px 12px; }
   body.reunioes .card .note { margin-bottom: 14px; }
+  /* a card without roles (events, some special days): the name, state and note take the free width */
+  body.reunioes .card:not(:has(.people)) {
+    grid-template-areas:
+      "time  name  name  link info"
+      "count state state .    .   "
+      "count note  note  .    .   ";
+  }
+  body.reunioes .card:not(:has(.people)) .note { justify-self: start; }
 }
 /* narrow list (phones): the panel becomes a band under the name, number on the left and time on the right */
 @container (max-width: 479px) {
