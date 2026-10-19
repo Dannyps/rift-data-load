@@ -280,16 +280,18 @@ button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .ranges button:focus-visible, body.reunioes .weekbar .buttons button:focus-visible { outline-offset: -2px; }
 .ranges button[aria-pressed="true"]:focus-visible { outline: 2px solid var(--on-accent); outline-offset: -5px; }
 
-/* ---- KPI tiles: a bento of four widgets ----
- * The number of people inside (the third tile) is the hero: a big gradient widget, two rows tall, with the number at
- * display size. Entries and exits sit side by side next to it; the last reading is a slim status strip under them.
- * Each tile: icon in a tinted square, uppercase label, big light number, note, colour bar at the bottom. */
+/* ---- KPI tiles ----
+ * 1. A live display across the full width: the number of people inside right now (the third tile) at display size on
+ *    a dark screen, with a pulsing "Em direto" marker (the page reloads the data every minute). The last reading (the
+ *    fourth tile) is laid over the bottom of the display as its footer, so the display itself says how fresh the
+ *    number is ("recebida há ... min").
+ * 2. Under it, the entries and exits of the selected period, side by side.
+ * Each small tile: icon in a tinted square, uppercase label, big light number, note, colour bar at the bottom. */
 .tiles {
-  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 0;
-  grid-template-areas: "head head head head" "hero hero in out" "hero hero last last";
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 0;
+  grid-template-areas: "hero hero" "in out";
 }
-.tiles::before { content: "Agora"; grid-area: head; margin-bottom: 2px; }   /* CSS text: section title */
-.tiles::after { content: none; }                                         /* the chart widget carries its own title */
+.tiles::before, .tiles::after { content: none; }   /* no section titles: the display leads the page, the chart widget has its own title */
 .tile {
   position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "icon label" "value value" "note note";
   column-gap: 12px; align-content: start; min-width: 0; overflow: hidden;
@@ -300,7 +302,8 @@ button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .tile:nth-child(1) { grid-area: in; --c: var(--series-in); --i: var(--ico-in); }
 .tile:nth-child(2) { grid-area: out; --c: var(--series-out); --i: var(--ico-out); }
 .tile:nth-child(3) { grid-area: hero; --c: var(--series-bal); --i: var(--ico-users); }
-.tile:nth-child(4) { grid-area: last; }
+.tile:nth-child(4) { grid-area: hero; }
+.tile:nth-child(-n+2) { z-index: 1; }   /* entries and exits paint over the display's glow */
 .tile:hover { box-shadow: var(--shadow-md); }
 .tile::before {
   content: ""; grid-area: icon; align-self: center; width: var(--ic); height: var(--ic); border-radius: 11px;
@@ -316,34 +319,53 @@ button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .tile .value { grid-area: value; margin: 14px 0 4px; font-size: 48px; font-weight: 200; line-height: 1; letter-spacing: -.045em; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .tile .note { grid-area: note; color: var(--text-muted); font-size: 12.5px; font-weight: 500; }
 
-/* hero: people inside. White text on a teal-to-blue gradient (4.8:1 or more everywhere), the number at display size,
-   a large faint icon in the corner. */
+/* 1. the live display. Light text on a dark navy screen in both colour schemes (9:1 or more) */
 .tile:nth-child(3) {
-  grid-template-rows: auto 1fr auto; align-content: stretch; min-height: 236px; padding: 24px 26px 26px; border: 0;
-  background: linear-gradient(140deg, #0d7d6e 0%, #1f5fa8 55%, #2347c6 100%);
-  box-shadow: var(--shadow-md); color: #ffffff; --ic: 44px; --pad: 24px;
+  grid-template-columns: minmax(0, 1fr); grid-template-areas: "label" "value" "note"; justify-items: center; align-content: center;
+  min-height: 400px; padding: 66px 28px 100px; border: 0; border-radius: 20px; text-align: center; color: #ffffff;
+  background:
+    radial-gradient(55% 60% at 50% 44%, rgba(47, 208, 180, .26), rgba(47, 208, 180, 0) 70%),
+    radial-gradient(rgba(255, 255, 255, .07) 1px, transparent 1.6px) 0 0 / 18px 18px,
+    linear-gradient(165deg, #0c1838 0%, #0a1230 60%, #101c47 100%);
+  box-shadow: 0 0 0 1px rgba(47, 208, 180, .3), 0 26px 60px -26px rgba(13, 125, 110, .6), var(--shadow-md);
 }
-.tile:nth-child(3)::before { background: rgba(255, 255, 255, .16); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .28); }
-.tile:nth-child(3) .label::after { left: calc(26px + (var(--ic) - 20px) / 2); background: #ffffff; }
-.tile:nth-child(3)::after {   /* large decorative icon in the bottom right corner (no text there) */
-  left: auto; top: auto; right: -26px; bottom: -34px; width: 190px; height: 190px; background: #ffffff; opacity: .1;
-  -webkit-mask: var(--i) center / contain no-repeat; mask: var(--i) center / contain no-repeat;
+.tile:nth-child(3)::before {   /* the "Em direto" marker, top left (CSS text) */
+  content: "Em direto"; position: absolute; top: 22px; left: 24px; width: auto; height: auto;
+  padding: 5px 12px 5px 28px; border-radius: 999px; background: rgba(255, 255, 255, .08); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .2);
+  color: #ffffff; font-size: 11px; font-weight: 800; letter-spacing: .14em; line-height: 16px; text-transform: uppercase;
 }
-.tile:nth-child(3) .label { color: #ffffff; font-size: 12px; }
-.tile:nth-child(3) .label .swatch { background: #ffffff; }
-.tile:nth-child(3) .value { align-self: center; margin: 18px 0 6px; font-size: 104px; letter-spacing: -.05em; }
-.tile:nth-child(3) .note { position: relative; color: #ffffff; font-size: 14px; font-weight: 600; }
+.tile:nth-child(3)::after {    /* its dot */
+  left: 35px; top: 31px; right: auto; bottom: auto; width: 8px; height: 8px; border-radius: 50%;
+  background: #34d399; box-shadow: 0 0 0 3px rgba(52, 211, 153, .25);
+}
+.tile:nth-child(3) .label { justify-content: center; color: #b8c3e6; font-size: 13px; letter-spacing: .16em; }
+.tile:nth-child(3) .label .swatch { background: #2fd0b4; }
+.tile:nth-child(3) .label::after { content: none; }
+.tile:nth-child(3) .value {
+  margin: 16px 0 10px; font-size: clamp(120px, 15vw, 220px); font-weight: 300; line-height: .9; letter-spacing: -.05em;
+  text-shadow: 0 0 48px rgba(47, 208, 180, .45);
+}
+.tile:nth-child(3) .note { color: #d3dbf2; font-size: 17px; font-weight: 600; }
+/* when the page marks old data with a class "stale" on #status (it does not yet: see the notes for the site owner),
+   the marker says so and stops pulsing */
+body:has(#status.stale) .tile:nth-child(3)::before { content: "Sem dados recentes"; }
+body:has(#status.stale) .tile:nth-child(3)::after { background: #8f9bbd; box-shadow: none; animation: none; }
 
-/* status strip: last reading. Icon, label and note on the left, the time on the right */
+/* the display's footer: the last reading, laid over the bottom of the display */
 .tile:nth-child(4) {
-  grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "icon label value" "icon note value";
-  align-content: center; row-gap: 3px; padding-block: 16px 18px;
+  align-self: end; z-index: 1; margin: 0 1px 1px;
+  grid-template-columns: auto auto auto; grid-template-areas: "label value note"; justify-content: center; align-items: center; column-gap: 14px;
+  padding: 16px 24px; background: rgba(255, 255, 255, .04); border: 0; border-top: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 0 0 19px 19px; box-shadow: none;
 }
-.tile:nth-child(4)::before { grid-row: 1 / 3; }
-.tile:nth-child(4) .label { align-self: end; }
-.tile:nth-child(4) .note { align-self: start; }
-.tile:nth-child(4) .value { align-self: center; margin: 0 0 0 12px; font-size: 40px; }
-.tile:nth-child(4) .label::after { top: 50%; margin-top: -12px; }
+.tile:nth-child(4)::before, .tile:nth-child(4)::after, .tile:nth-child(4) .label::after { content: none; }
+.tile:nth-child(4) .label { color: #b8c3e6; }
+.tile:nth-child(4) .label::before {
+  content: ""; flex: none; width: 17px; height: 17px; background: #c4b5fd;
+  -webkit-mask: var(--ico-clock) center / contain no-repeat; mask: var(--ico-clock) center / contain no-repeat;
+}
+.tile:nth-child(4) .value { margin: 0; color: #ffffff; font-size: 26px; font-weight: 600; letter-spacing: -.02em; }
+.tile:nth-child(4) .note { color: #b8c3e6; font-size: 13.5px; }
 
 /* ---- colour swatches (legend, tooltip, tile labels) ---- */
 .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
@@ -499,11 +521,15 @@ footer p:not(.footer-links), body.reunioes #h_assistencia { display: none; }
 @keyframes fade { from { opacity: 0; } }
 @keyframes grow-y { from { transform: scaleY(0); } }
 @keyframes grow-x { from { transform: scaleX(0); } }
+@keyframes glow { 50% { text-shadow: 0 0 76px rgba(47, 208, 180, .75); } }
+@keyframes pulse-live {
+  0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, .7); }
+  70%, 100% { box-shadow: 0 0 0 9px rgba(52, 211, 153, 0); }
+}
 @media (prefers-reduced-motion: no-preference) {
   .tile, .controls, #chart, #tablewrap { animation: rise .7s cubic-bezier(.2, .8, .2, 1) backwards; }
-  .tile:nth-child(2) { animation-delay: .07s; }
-  .tile:nth-child(3) { animation-delay: .14s; }
-  .tile:nth-child(4) { animation-delay: .21s; }
+  .tile:nth-child(1) { animation-delay: .12s; }
+  .tile:nth-child(2) { animation-delay: .19s; }
   .controls { animation-delay: .26s; }
   #chart { animation-delay: .32s; }
   .tiles::before, .tiles::after, footer { animation: fade .8s backwards; }
@@ -512,33 +538,33 @@ footer p:not(.footer-links), body.reunioes #h_assistencia { display: none; }
   #chart svg path { transform-box: view-box; transform-origin: 0 312px; animation: grow-y .9s .15s cubic-bezier(.2, .8, .2, 1) backwards; }
   .tip { animation: pop .16s ease-out; }
   .tile:hover { transform: translateY(-3px); }
+  .tile:nth-child(n+3):hover { transform: none; }  /* the display and its footer stay put */
+  .tile:nth-child(3) .value { animation: pop .8s .3s cubic-bezier(.2, .8, .2, 1) backwards, glow 3.2s 1.2s ease-in-out infinite; }
+  .tile:nth-child(3)::after { animation: pulse-live 1.8s ease-out infinite; }
   .nav a:hover { transform: translateX(2px); }
   button:active:not(:disabled) { transform: scale(.97); }
 }
 
 /* ---- responsive (shared) ---- */
-@media (max-width: 1180px) {
-  .tile:nth-child(3) .value { font-size: 88px; }
-}
 @media (max-width: 720px) {
   body { --gutter: 16px; padding-bottom: 40px; }
   header { padding: 12px 0; }
   .nav { margin-bottom: 20px; padding-bottom: 10px; }
   body:not(.admin) .nav a { flex: 1 1 0; justify-content: center; }
-  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "head head" "hero hero" "in out" "last last"; gap: 12px; }
-  .tiles::before { font-size: 21px; }
+  .tiles { gap: 12px; }
   .tile { column-gap: 10px; padding: 14px 14px 18px; --ic: 32px; --pad: 14px; }
   .tile::before { border-radius: 9px; }
   .tile .label { font-size: 10.5px; letter-spacing: .06em; }
   .tile .label::after { width: 18px; height: 18px; left: calc(var(--pad) + (var(--ic) - 18px) / 2); top: calc(var(--pad) + (var(--ic) - 18px) / 2); }
   .tile .value { margin-top: 12px; font-size: 40px; }
-  .tile:nth-child(3) { min-height: 0; padding: 18px 18px 20px; --ic: 38px; --pad: 18px; }
-  .tile:nth-child(3) .label::after { left: calc(18px + (var(--ic) - 18px) / 2); }
-  .tile:nth-child(3) .value { margin: 18px 0 6px; font-size: 76px; }
-  .tile:nth-child(3)::after { width: 150px; height: 150px; right: -22px; bottom: -28px; }
-  .tile:nth-child(4) { padding-block: 14px 16px; }
-  .tile:nth-child(4) .value { font-size: 32px; }
-  .tile:nth-child(4) .label::after { top: 50%; margin-top: -11px; }
+  .tile:nth-child(3) { min-height: 0; padding: 62px 16px 104px; border-radius: 18px; }
+  .tile:nth-child(3)::before { top: 16px; left: 16px; }
+  .tile:nth-child(3)::after { top: 25px; left: 27px; }
+  .tile:nth-child(3) .label { font-size: 11.5px; letter-spacing: .14em; }
+  .tile:nth-child(3) .value { margin: 14px 0 10px; font-size: 120px; }
+  .tile:nth-child(3) .note { font-size: 15px; }
+  .tile:nth-child(4) { grid-template-columns: auto auto; grid-template-areas: "label value" "note note"; justify-items: center; row-gap: 4px; padding: 12px 16px 14px; border-radius: 0 0 17px 17px; }
+  .tile:nth-child(4) .value { font-size: 22px; }
   .controls { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title toggle" "ranges ranges" "views views" "legend legend"; margin-top: 26px; padding: 14px 14px 12px; gap: 12px 10px; }
   .controls::before { font-size: 18px; padding-left: 13px; }
   #ranges { display: flex; justify-self: stretch; }
