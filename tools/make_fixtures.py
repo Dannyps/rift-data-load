@@ -76,10 +76,10 @@ def at(day, hhmm):
     return datetime(*map(int, day.split('-')), h, m, tzinfo=LISBON)
 
 
-def svc(day, hhmm, status, count, name=None, partial=False, special=False, ppl=None, minutes_=120):
+def svc(day, hhmm, status, count, name=None, partial=False, special=False, ppl=None, minutes_=120, total=None):
     s = at(day, hhmm)
     return {'name': name or f'Reunião das {hhmm}', 'time': hhmm, 'start': iso(s), 'end': iso(s + timedelta(minutes=minutes_)),
-            'status': status, 'count': count, 'partial': partial, 'special': special, 'people': ppl if ppl is not None else {}}
+            'status': status, 'count': count, 'total': total, 'partial': partial, 'special': special, 'people': ppl if ppl is not None else {}}
 
 
 def event(day, start, end, count, peak_at):
@@ -104,7 +104,7 @@ A = [  # the current week: running meeting + not started + a weekday evening
 B = [  # a past week: partial data, no data, a special day, an event
     {'date': '2026-10-11', 'services': [
         svc('2026-10-11', '09:30', 'done', 112, partial=True, ppl=people('Ana Ferreira', 'Rui Almeida', 'Sofia Lopes', 'Pr. Miguel Duarte')),
-        svc('2026-10-11', '11:30', 'done', 407, ppl=people('Carlos Mendes', 'Rui Almeida', 'Sofia Lopes', 'Pr. Miguel Duarte')),
+        svc('2026-10-11', '11:30', 'done', 407, total=484, ppl=people('Carlos Mendes', 'Rui Almeida', 'Sofia Lopes', 'Pr. Miguel Duarte')),
         svc('2026-10-11', '17:30', 'done', 89, ppl=people('Inês Barros', 'Tomás Pinto', 'Beatriz Cruz', 'Pra. Helena Costa')),
     ], 'event': None},
     {'date': '2026-10-14', 'services': [svc('2026-10-14', '19:30', 'done', 64, name='Noite de Louvor', special=True, ppl={})], 'event': None},
