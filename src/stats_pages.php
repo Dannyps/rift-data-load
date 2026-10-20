@@ -123,13 +123,20 @@ function stats_meeting(array $r, DateTimeImmutable $now): array
     $total = $r['arrivals_total'] === null ? null : (int)$r['arrivals_total'];
     $late = $r['arrivals_late'] === null ? null : (int)$r['arrivals_late'];
     $partial = $r['partial'] === 't';
-    return [
+    $int = fn($v) => $v === null ? null : (int)$v;
+    // Hillsong Kids = children/babies in the auditorium + in Kids. "On site" = what the /reunioes card shows once a
+    // report is saved: assistência + Kids + auditorium + adults outside the doors (null without a report).
+    $hasReport = $r['r_assistencia'] !== null;
+    $hillsongKids = $r['kids'] === null && $r['auditorio'] === null ? null : (int)$r['kids'] + (int)$r['auditorio'];
+    $m = [
         'day' => $r['day'],
         'time' => $r['time'],
         'name' => $r['name'],
         'status' => parse_ts($r['window_end']) > $now->setTimezone(utc()) ? 'running' : 'done',
         'assistencia' => $assistencia,
         'assistenciaSource' => $source,
+        'onSite' => $hasReport ? (int)$r['r_assistencia'] + (int)$r['kids'] + (int)$r['auditorio'] + (int)$r['adultos_fora'] : null,
+        'hillsongKids' => $hillsongKids,
         'counterPeak' => $r['peak'] === null ? null : (int)$r['peak'],
         'partial' => $partial,
         'late' => [
@@ -142,22 +149,39 @@ function stats_meeting(array $r, DateTimeImmutable $now): array
         'categories' => [
             'voluntarios' => $r['voluntarios'] === null ? null : (int)$r['voluntarios'],
             'visitantes' => $r['visitantes'] === null ? null : (int)$r['visitantes'],
-            'kids' => $r['kids'] === null ? null : (int)$r['kids'],
-            'decisoes' => $r['decisoes'] === null ? null : (int)$r['decisoes'],
+            'kids' => $int($r['kids']),
+            'auditorio' => $int($r['auditorio']),
+            'adultos_fora' => $int($r['adultos_fora']),
+            'decisoes' => $int($r['decisoes']),
         ],
     ];
+    // the number on the /reunioes card: everybody on site once a report is saved, else the attendance
+    $m['shown'] = $m['onSite'] ?? $m['assistencia'];
+    return $m;
 }
 
-/** Sums over meetings: assistência (always) and the report categories (null when no meeting has them). */
+/**
+ * Sums over meetings: assistência and the report categories (each null when no meeting has it). A sum only covers
+ * the meetings that have the value, so 'withData' (meetings with an attendance) and 'reports' (meetings with a saved
+ * report) say how complete it is; the page flags a total when they are lower than 'meetings'.
+ * onSite = the sum of the meetings' on-site totals (assistência + Kids + auditorium + adults outside).
+ */
 function stats_totals(array $meetings): array
 {
     $cat = fn(string $k) => stats_sum(array_map(fn($m) => ['v' => $m['categories'][$k]], $meetings), 'v');
     return [
         'meetings' => count($meetings),
+        'withData' => count(array_filter($meetings, fn($m) => $m['assistencia'] !== null)),
+        'reports' => count(array_filter($meetings, fn($m) => $m['onSite'] !== null)),
         'assistencia' => stats_sum($meetings, 'assistencia'),
+        'shown' => stats_sum($meetings, 'shown'),
+        'onSite' => stats_sum($meetings, 'onSite'),
+        'hillsongKids' => stats_sum($meetings, 'hillsongKids'),
         'voluntarios' => $cat('voluntarios'),
         'visitantes' => $cat('visitantes'),
         'kids' => $cat('kids'),
+        'auditorio' => $cat('auditorio'),
+        'adultos_fora' => $cat('adultos_fora'),
         'decisoes' => $cat('decisoes'),
     ];
 }
@@ -217,10 +241,10 @@ function stats_week_data($con, DateTimeImmutable $now, string $sunday): array
     foreach ($mine as &$m) {
         $p = $prevBySlot[$m['dow'] . ' ' . $m['time']] ?? null;
         $m['previous'] = $p ? [
-            'day' => $p['day'], 'assistencia' => $p['assistencia'], 'latePct' => $p['late']['pct'], 'devotionalPeak' => $p['devotional']['peak'],
+            'day' => $p['day'], 'assistencia' => $p['assistencia'], 'shown' => $p['shown'], 'latePct' => $p['late']['pct'], 'devotionalPeak' => $p['devotional']['peak'],
             'volunteers' => $p['categories']['voluntarios'],
         ] : null;
-        $m['delta'] = $p ? stats_delta($m['assistencia'], $p['assistencia']) : null;
+        $m['delta'] = $p ? stats_delta($m['shown'], $p['shown']) : null;
     }
     unset($m);
 
@@ -295,11 +319,15 @@ function stats_month_summary($con, string $ym): array
         $out[] = [
             'dow' => $s['dow'], 'time' => $s['time'], 'name' => $s['name'], 'meetings' => count($rows),
             'assistencia' => stats_mean(array_column($rows, 'assistencia')),
+            'shown' => stats_mean(array_column($rows, 'shown')),
             'latePct' => stats_mean(array_map(fn($m) => $m['late']['pct'], $rows)),
             'devotionalPeak' => stats_mean(array_map(fn($m) => $m['devotional']['peak'], $rows)),
         ];
     }
     $totals = array_map(fn($ms) => stats_totals($ms), $sundays);
+    // the mean of the Sunday totals only uses Sundays where every meeting has its figure (a half-filled Sunday would pull it down)
+    $fullAtt = array_filter($totals, fn($t) => $t['meetings'] > 0 && $t['withData'] === $t['meetings']);
+    $fullSite = array_filter($totals, fn($t) => $t['meetings'] > 0 && $t['reports'] === $t['meetings']);
     $exit = [];
     foreach (pg_fetch_all(pg_query_params($con, "SELECT to_char(ref_time, 'HH24:MI') AS ref, state, minutes FROM exit_stats WHERE day BETWEEN $1::date AND $2::date", [$from, $to])) ?: [] as $r) {
         $exit[$r['ref']]['reached'][] = $r['state'] === 'reached' ? (int)$r['minutes'] : null;
@@ -314,7 +342,11 @@ function stats_month_summary($con, string $ym): array
         'month' => $ym,
         'slots' => $out,
         'sundays' => count($sundays),
-        'sundayAssistencia' => stats_mean(array_column($totals, 'assistencia')),
+        'sundayAssistencia' => stats_mean(array_column($fullAtt, 'assistencia')),
+        'sundayShown' => stats_mean(array_column($fullAtt, 'shown')),
+        'sundayOnSite' => stats_mean(array_column($fullSite, 'onSite')),
+        'sundaysUsed' => count($fullAtt),
+        'sundaysUsedOnSite' => count($fullSite),
         'exit' => $exitOut,
     ];
 }

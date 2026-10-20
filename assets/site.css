@@ -810,6 +810,8 @@ body.admin .s-cats span:nth-child(1) { --c: var(--series-5); --i: var(--ico-hear
 body.admin .s-cats span:nth-child(2) { --c: var(--series-in); --i: var(--ico-user-plus); }
 body.admin .s-cats span:nth-child(3) { --c: var(--series-4); --i: var(--ico-smile); }
 body.admin .s-cats span:nth-child(4) { --c: var(--series-bal); --i: var(--ico-check); }
+body.admin .s-warn { color: var(--danger, #b3261e); font-size: 12px; }
+body.admin .s-kv-line { margin-top: 8px; font-size: 14px; }
 body.admin .s-cats b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
 body.admin .s-tw { overflow-x: auto; }
 body.admin .s-cards > .s-card:has(.s-tw) { grid-column: 1 / -1; }  /* a card holding a wide table spans the row */

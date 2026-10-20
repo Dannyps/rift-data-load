@@ -73,30 +73,40 @@
     else late = dec(m.late.pct) + '% <span class="muted">(' + num(m.late.late) + ' de ' + num(m.late.total) + ' chegadas · tolerância ' + (m.late.grace === null ? '?' : m.late.grace) + ' min)</span>';
     var dev = m.devotional.peak === null ? '–' : num(m.devotional.peak) + ' <span class="muted">às ' + clock(m.devotional.at) + '</span>';
     var c = m.categories;
-    var hasReport = [c.voluntarios, c.visitantes, c.kids, c.decisoes].some(function (v) { return v !== null; });
+    var hasReport = [c.voluntarios, c.visitantes, c.kids, c.auditorio, c.decisoes].some(function (v) { return v !== null; });
     var report = hasReport
-      ? '<div class="s-cats"><span>Voluntários <b>' + num(c.voluntarios) + '</b></span><span>Visitantes <b>' + num(c.visitantes) + '</b></span><span>Kids <b>' + num(c.kids) + '</b></span><span>Decisões <b>' + num(c.decisoes) + '</b></span></div>'
+      ? '<div class="s-cats"><span>Voluntários <b>' + num(c.voluntarios) + '</b></span><span>Visitantes <b>' + num(c.visitantes) + '</b></span><span>Hillsong Kids <b>' + num(m.hillsongKids) + '</b></span><span>Decisões <b>' + num(c.decisoes) + '</b></span></div>'
       : '<div class="muted">Relatório por preencher (botão do relatório no cartão da reunião).</div>';
     return '<article class="s-card"><h4>' + esc(m.name) + ' <span class="muted">· ' + cap(weekdayFmt.format(dateOf(m.day))) + ' ' + shortFmt.format(dateOf(m.day)) + ' · ' + m.time + '</span></h4>' +
-      '<div class="s-big">' + num(m.assistencia) + ' <span class="muted s-src">assistência (' + esc(m.assistenciaSource) + ')</span></div>' +
-      delta(m.assistencia, m.previous ? m.previous.assistencia : null) +
+      '<div class="s-big">' + num(m.shown) + ' <span class="muted s-src">' + (m.onSite !== null ? 'no local' : 'assistência (' + esc(m.assistenciaSource) + ')') + '</span></div>' +
+      (m.onSite !== null ? '<div class="muted">Assistência + crianças no Kids + crianças no auditório + adultos fora das portas</div>' : '') +
+      delta(m.shown, m.previous ? m.previous.shown : null) +
       '<dl class="s-kv"><dt>Atrasos</dt><dd>' + late + '</dd><dt>Devocional</dt><dd>' + dev + '</dd>' +
-      (m.previous ? '<dt>Semana anterior</dt><dd>' + num(m.previous.assistencia) + (m.previous.latePct !== null ? ' · atrasos ' + dec(m.previous.latePct) + '%' : '') + '</dd>' : '') +
+      (m.onSite !== null ? '<dt>Assistência</dt><dd>' + num(m.assistencia) + ' <span class="muted">(' + esc(m.assistenciaSource) + ')</span></dd>' : '') +
+      (m.previous ? '<dt>Semana anterior</dt><dd>' + num(m.previous.shown) + (m.previous.latePct !== null ? ' · atrasos ' + dec(m.previous.latePct) + '%' : '') + '</dd>' : '') +
       '</dl>' + report + '</article>';
   }
+
+  // "2 de 3" when a sum only covers some of the meetings; empty when it is complete
+  function covers(n, of) { return n < of ? ' <span class="s-warn">(só ' + n + ' de ' + of + ' reuniões)</span>' : ''; }
 
   function totalCard(w) {
     var t = w.sundayTotal, p = w.prevSundayTotal;
     if (!t.meetings) return '';
-    var anyCat = ['voluntarios', 'visitantes', 'kids', 'decisoes'].some(function (k) { return t[k] !== null; });
-    var cats = !anyCat ? '' : ['voluntarios', 'visitantes', 'kids', 'decisoes'].map(function (k) {
-      var label = { voluntarios: 'Voluntários', visitantes: 'Visitantes', kids: 'Kids', decisoes: 'Decisões' }[k];
+    var keys = ['voluntarios', 'visitantes', 'hillsongKids', 'decisoes'];
+    var anyCat = keys.some(function (k) { return t[k] !== null; });
+    var cats = !anyCat ? '' : keys.map(function (k) {
+      var label = { voluntarios: 'Voluntários', visitantes: 'Visitantes', hillsongKids: 'Hillsong Kids', decisoes: 'Decisões' }[k];
       return '<span>' + label + ' <b>' + num(t[k]) + '</b>' + (p[k] !== null && t[k] !== null ? ' <span class="muted">(' + num(p[k]) + ')</span>' : '') + '</span>';
     }).join('');
+    var comparable = p.meetings && p.withData === p.meetings && t.withData === t.meetings && p.reports === t.reports;
     return '<article class="s-card s-total"><h4>Total do domingo <span class="muted">· soma das ' + t.meetings + ' reuniões · ' + shortFmt.format(dateOf(w.sunday)) + '</span></h4>' +
-      '<div class="s-big">' + num(t.assistencia) + ' <span class="muted s-src">assistência</span></div>' +
-      delta(t.assistencia, p.meetings ? p.assistencia : null) + (cats ? '<div class="s-cats">' + cats + '</div>' : '<div class="muted">Voluntários, visitantes, kids e decisões aparecem quando os relatórios das reuniões estiverem guardados.</div>') +
-      '<div class="muted">' + (cats ? 'Entre parênteses, o domingo anterior. ' : '') + 'A soma conta duas vezes quem esteve em mais de uma reunião.</div></article>';
+      '<div class="s-big">' + num(t.shown) + ' <span class="muted s-src">' + (t.reports === t.meetings ? 'no local' : 'no local / assistência') + '</span>' + covers(t.withData, t.meetings) + '</div>' +
+      '<div class="muted">' + (t.reports === t.meetings ? 'Assistência + crianças + adultos fora das portas, como nos cartões.' : 'Como nos cartões: no local nas reuniões com relatório (' + t.reports + ' de ' + t.meetings + '), só a assistência nas outras.') + '</div>' +
+      delta(t.shown, comparable ? p.shown : null) +
+      (cats ? '<div class="s-cats">' + cats + '</div>' + (t.reports < t.meetings ? '<div class="s-warn">Relatórios guardados: ' + t.reports + ' de ' + t.meetings + '; as categorias só somam esses.</div>' : '')
+            : '<div class="muted">Voluntários, visitantes, Hillsong Kids e decisões aparecem quando os relatórios das reuniões estiverem guardados.</div>') +
+      '<div class="muted">' + (cats ? 'Entre parênteses, o domingo anterior (só quando está completo). ' : '') + 'A soma conta duas vezes quem esteve em mais de uma reunião.</div></article>';
   }
 
   function exitBlock(w) {
@@ -212,7 +222,7 @@
     if (!m.slots.length) { $('monthBody').innerHTML = '<div class="hint">Sem reuniões com dados em ' + esc(mon) + '.</div>'; return; }
     var rows = m.slots.map(function (s) {
       var p = prevBySlot[s.dow + ' ' + s.time];
-      return '<tr><th scope="row">' + esc(cap(weekdayFmt.format(dateOf('2026-10-' + (11 + s.dow)))) + ' ' + s.time) + '</th><td>' + s.meetings + '</td><td>' + dec(s.assistencia) + '</td><td class="muted">' + (p ? dec(p.assistencia) : '–') +
+      return '<tr><th scope="row">' + esc(cap(weekdayFmt.format(dateOf('2026-10-' + (11 + s.dow)))) + ' ' + s.time) + '</th><td>' + s.meetings + '</td><td>' + dec(s.shown) + '</td><td class="muted">' + (p ? dec(p.shown) : '–') +
         '</td><td>' + (s.latePct === null ? '–' : dec(s.latePct) + '%') + '</td><td>' + (s.devotionalPeak === null ? '–' : dec(s.devotionalPeak)) + '</td></tr>';
     }).join('');
     var exit = m.exit.length ? '<table class="s-table"><thead><tr><th>Velocidade de saída (média)</th><th>' + esc(mon) + '</th><th>' + esc(pmon) + '</th></tr></thead><tbody>' + m.exit.map(function (e) {
@@ -220,9 +230,10 @@
       var f = function (x) { return x && x.minutes !== null && x.minutes !== undefined ? dec(x.minutes) + ' min' + (x.notReached ? ' (+' + x.notReached + ' sem chegar)' : '') : (x && x.notReached ? 'não atingiu' : '–'); };
       return '<tr><th scope="row">Depois das ' + e.ref + '</th><td>' + f(e) + '</td><td class="muted">' + f(pe) + '</td></tr>';
     }).join('') + '</tbody></table>' : '';
-    $('monthBody').innerHTML = '<div class="s-cards"><article class="s-card"><h4>' + esc(mon) + ' <span class="muted">· médias por reunião</span></h4><div class="s-tw"><table class="s-table stackable"><thead><tr><th>Reunião</th><th>Nº</th><th>Assistência média</th><th>' + esc(pmon) + '</th><th>Atrasos</th><th>Devocional</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+    $('monthBody').innerHTML = '<div class="s-cards"><article class="s-card"><h4>' + esc(mon) + ' <span class="muted">· médias por reunião</span></h4><div class="s-tw"><table class="s-table stackable"><thead><tr><th>Reunião</th><th>Nº</th><th>Média (como nos cartões)</th><th>' + esc(pmon) + '</th><th>Atrasos</th><th>Devocional</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
       '<div class="muted">Atrasos: só reuniões com o contador a funcionar desde antes do início.</div></article>' +
-      '<article class="s-card"><h4>Domingos de ' + esc(mon) + '</h4><div class="s-big">' + dec(m.sundayAssistencia) + ' <span class="muted s-src">assistência média por domingo (soma das reuniões) · ' + m.sundays + ' domingo(s)</span></div><div class="muted">' + esc(pmon) + ': ' + dec(pv.sundayAssistencia) + (m.sundayAssistencia !== null && pv.sundayAssistencia !== null ? ' · diferença ' + (m.sundayAssistencia - pv.sundayAssistencia >= 0 ? '+' : '−') + dec(Math.abs(m.sundayAssistencia - pv.sundayAssistencia)) : '') + '</div>' + exit + '</article></div>';
+      '<article class="s-card"><h4>Domingos de ' + esc(mon) + '</h4><div class="s-big">' + dec(m.sundayShown) + ' <span class="muted s-src">média por domingo, como nos cartões (soma das reuniões) · ' + m.sundaysUsed + ' de ' + m.sundays + ' domingo(s) completos</span></div><div class="muted">' + esc(pmon) + ': ' + dec(pv.sundayShown) + (m.sundayShown !== null && pv.sundayShown !== null ? ' · diferença ' + (m.sundayShown - pv.sundayShown >= 0 ? '+' : '−') + dec(Math.abs(m.sundayShown - pv.sundayShown)) : '') + '</div>' +
+      (m.sundaysUsedOnSite < m.sundaysUsed ? '<div class="muted">Só ' + m.sundaysUsedOnSite + ' de ' + m.sundaysUsed + ' domingo(s) têm todos os relatórios; nos outros conta a assistência do contador.</div>' : '') + exit + '</article></div>';
     if (window.stackTables) window.stackTables($('monthBody'));
   }
   function loadMonth() {
@@ -233,10 +244,10 @@
 
   // ------------------------------------------------------------------ year
   var CATS = [
-    ['assistencia', 'Assistência (total do domingo)', 'c1'],
+    ['shown', 'Total do domingo (como nos cartões)', 'c1'],
     ['voluntarios', 'Voluntários', 'c3'],
     ['visitantes', 'Visitantes', 'c2'],
-    ['kids', 'Kids', 'c4'],
+    ['hillsongKids', 'Hillsong Kids', 'c4'],
     ['decisoes', 'Decisões', 'c5'],
   ];
 
@@ -273,7 +284,7 @@
       var s = d[i];
       var cx = M.l + slot * i + slot / 2;
       vline.setAttribute('x1', cx); vline.setAttribute('x2', cx); vline.removeAttribute('hidden');
-      showTip('<b>' + cap(dayFmt.format(dateOf(s.day))) + '</b>' + CATS.map(function (c) { return '<div><i class="sw ' + c[2] + '"></i>' + esc(c[1].replace(' (total do domingo)', '')) + ' <b>' + num(s[c[0]]) + '</b></div>'; }).join('') + '<div class="muted">' + s.meetings + ' reunião(ões)</div>', ev);
+      showTip('<b>' + cap(dayFmt.format(dateOf(s.day))) + '</b>' + CATS.map(function (c) { return '<div><i class="sw ' + c[2] + '"></i>' + esc(c[1].replace(' (como nos cartões)', '')) + ' <b>' + num(s[c[0]]) + '</b></div>'; }).join('') + '<div class="muted">' + s.meetings + ' reunião(ões)' + (s.reports < s.meetings ? ' · ' + s.reports + ' relatório(s)' : '') + '</div>', ev);
     });
     hit.addEventListener('pointerleave', function () { vline.setAttribute('hidden', ''); hideTip(); });
     return wrap;

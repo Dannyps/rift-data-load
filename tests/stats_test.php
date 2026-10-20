@@ -103,14 +103,15 @@ check('attendance unknown', stats_assistencia(['peak' => null] + $row), [null, '
 // ---- a meeting's page shape: late share is hidden when the counter started late
 $base = ['day' => '2027-03-07', 'time' => '09:30', 'name' => 'Reunião das 09:30', 'window_end' => '2027-03-07 11:30:00', 'peak' => '300', 'corrected_peak' => null, 'r_assistencia' => null,
          'partial' => 'f', 'arrivals_total' => '200', 'arrivals_late' => '30', 'late_grace_min' => '10', 'devotional_at' => '2027-03-07 08:40:00', 'devotional_peak' => '25',
-         'voluntarios' => null, 'visitantes' => null, 'kids' => null, 'decisoes' => null];
+         'voluntarios' => null, 'visitantes' => null, 'kids' => null, 'auditorio' => null, 'adultos_fora' => null, 'decisoes' => null];
 $m = stats_meeting($base, u('2027-03-07 13:00:00'));
 check('meeting: late share', $m['late'], ['total' => 200, 'late' => 30, 'pct' => 15.0, 'grace' => 10]);
 check('meeting: done after the window', $m['status'], 'done');
 check('meeting: running inside the window', stats_meeting($base, u('2027-03-07 10:00:00'))['status'], 'running');
 check('meeting: partial hides the late share', stats_meeting(['partial' => 't'] + $base, u('2027-03-07 13:00:00'))['late']['pct'], null);
 check('meeting: devotional', $m['devotional'], ['at' => '2027-03-07T08:40:00Z', 'peak' => 25]);
-check('meeting: no report, no categories', $m['categories'], ['voluntarios' => null, 'visitantes' => null, 'kids' => null, 'decisoes' => null]);
+check('meeting: no report, no categories', $m['categories'], ['voluntarios' => null, 'visitantes' => null, 'kids' => null, 'auditorio' => null, 'adultos_fora' => null, 'decisoes' => null]);
+check('meeting: no report, no on-site total', [$m['onSite'], $m['hillsongKids']], [null, null]);
 
 // ---- Sunday totals: the three meetings added together, categories only from saved reports
 $a = stats_meeting($base + [], u('2027-03-07 13:00:00'));
@@ -121,7 +122,18 @@ check('Sunday total of volunteers ignores meetings without a report', stats_tota
 check('Sunday total of visitors (one value)', stats_totals([$a, $b, $c])['visitantes'], 10);
 check('Sunday total with no report at all is null', stats_totals([$a])['kids'], null);
 check('Sunday total counts meetings', stats_totals([$a, $b, $c])['meetings'], 3);
-check('Sunday total of nothing', stats_totals([]), ['meetings' => 0, 'assistencia' => null, 'voluntarios' => null, 'visitantes' => null, 'kids' => null, 'decisoes' => null]);
+check('Sunday total of nothing', stats_totals([]), ['meetings' => 0, 'withData' => 0, 'reports' => 0, 'assistencia' => null, 'shown' => null, 'onSite' => null, 'hillsongKids' => null,
+    'voluntarios' => null, 'visitantes' => null, 'kids' => null, 'auditorio' => null, 'adultos_fora' => null, 'decisoes' => null]);
+
+// ---- on site (as the card on /reunioes) and Hillsong Kids = Kids + auditorium; completeness counters
+$d = stats_meeting(['r_assistencia' => '100', 'kids' => '10', 'auditorio' => '4', 'adultos_fora' => '6', 'voluntarios' => '9', 'visitantes' => '3', 'decisoes' => '0'] + $base, u('2027-03-07 13:00:00'));
+check('meeting: on site = assistência + kids + auditório + adultos fora', $d['onSite'], 100 + 10 + 4 + 6);
+check('meeting: Hillsong Kids = kids + auditório', $d['hillsongKids'], 14);
+$t = stats_totals([$a, $d]);
+check('Sunday: on-site sum only has the meetings with a report', [$t['onSite'], $t['reports'], $t['withData'], $t['meetings']], [120, 1, 2, 2]);
+check('Sunday: Hillsong Kids sum', $t['hillsongKids'], 14);
+check('meeting: shown = on site with a report, else the attendance', [$a['shown'], $d['shown']], [300, 120]);
+check('Sunday: shown sums what the cards show', $t['shown'], 300 + 120);
 
 // ---- small helpers
 check('sum ignores nulls', stats_sum([['a' => 3], ['a' => null], ['a' => 4]], 'a'), 7);
