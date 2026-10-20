@@ -34,6 +34,19 @@ if (str_starts_with($route, '/api/')) {
     if ($route === '/api/me') {
         $out($apiUser ? ['loggedIn' => true, 'user' => $apiUser['username'], 'role' => $apiUser['role'], 'csrf' => csrf_token()] : ['loggedIn' => false]);
     }
+    // A saved meeting report is readable by everybody (it is what the public report dialog pre-fills); saving needs a login.
+    if ($route === '/api/report' && !$isPost && !$apiUser) {
+        $day = (string)($_GET['day'] ?? '');
+        $time = (string)($_GET['time'] ?? '');
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $day) || !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $time)) {
+            $out(['error' => 'bad request'], 400);
+        }
+        $report = report_get($con, $day, $time);
+        if ($report) {
+            unset($report['savedBy'], $report['savedAt']);
+        }
+        $out(['report' => $report, 'suggest' => null]);
+    }
     if (!$apiUser) {
         $out(['error' => 'login'], 401);
     }

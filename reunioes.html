@@ -295,11 +295,11 @@ async function openReport(key) {
   if (!card) return;
   session = await sessionReady;
   let saved = null, suggest = null;
-  if (session.loggedIn && card.kind === 's') {
+  if (card.kind === 's') {   // saved reports are public; only the suggestion and saving need a login
     try {
       const r = await fetch(`/admin/api/report?day=${card.date}&time=${card.time}`, { credentials: 'same-origin', cache: 'no-store' });
       if (r.ok) ({ report: saved, suggest } = await r.json());
-      else if (r.status === 401) session = { loggedIn: false };
+      else if (r.status === 401) session = { loggedIn: false };   // session expired
     } catch (e) { /* offline: behave as anonymous */ }
   }
   current = { key, card };
@@ -332,7 +332,8 @@ async function openReport(key) {
     $('saveNote').textContent = '';
     $('reportIntro').textContent = session.loggedIn
       ? `Sessão iniciada como ${session.user}: ao gerar o texto, o relatório fica guardado nas estatísticas${saved ? ' (já havia um guardado: foi carregado)' : ''}.`
-      : 'Preencha todos os campos e carregue em «Gerar texto». Sem sessão iniciada nada fica guardado: ao fechar, os valores perdem-se.';
+      : (saved ? 'Este relatório já foi preenchido e foi carregado. Pode gerar o texto; sem sessão iniciada as alterações não ficam guardadas.'
+        : 'Preencha todos os campos e carregue em «Gerar texto». Sem sessão iniciada nada fica guardado: ao fechar, os valores perdem-se.');
   }
   dlg.showModal();
   fitViewport();
