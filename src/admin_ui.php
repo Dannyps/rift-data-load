@@ -35,6 +35,13 @@ function fmt_local(?string $ts, string $format = 'd/m/Y H:i'): string
 
 const WEEKDAYS = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
 
+/** An asset URL with its modification time, so a changed file is never served from a browser's cached copy. */
+function asset_url(string $path): string
+{
+    $file = dirname(__DIR__) . $path;
+    return $path . (is_file($file) ? '?v=' . filemtime($file) : '');
+}
+
 function page(string $title, string $body, ?array $user, string $active = '', array $scripts = []): never
 {
     header('Content-Type: text/html; charset=utf-8');
@@ -78,10 +85,10 @@ function page(string $title, string $body, ?array $user, string $active = '', ar
 
     echo '<!doctype html><html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
         . '<meta name="robots" content="noindex"><link rel="icon" href="/favicon.ico" sizes="48x48"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><title>' . h($title) . ' · Administração RIFT</title>'
-        . '<link rel="stylesheet" href="/assets/site.css"></head><body class="admin"><main>'
+        . '<link rel="stylesheet" href="' . asset_url('/assets/site.css') . '"></head><body class="admin"><main>'
         . '<header><div class="title">' . $toggle . '<h1>Administração</h1></div><div class="who"><a class="sub" href="/reunioes">Ver o site</a> ' . $who . '</div></header>'
         . $nav . $flashes . '<h2>' . h($title) . '</h2>' . $body
-        . '</main><script src="/assets/admin.js"></script>'
-        . implode('', array_map(fn($s) => '<script src="' . h($s) . '"></script>', $scripts)) . '</body></html>';
+        . '</main><script src="' . asset_url('/assets/admin.js') . '"></script>'
+        . implode('', array_map(fn($s) => '<script src="' . h(asset_url($s)) . '"></script>', $scripts)) . '</body></html>';
     exit;
 }
