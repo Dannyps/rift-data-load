@@ -79,8 +79,8 @@
       : '<div class="muted">Relatório por preencher (botão do relatório no cartão da reunião).</div>';
     return '<article class="s-card"><h4>' + esc(m.name) + ' <span class="muted">· ' + cap(weekdayFmt.format(dateOf(m.day))) + ' ' + shortFmt.format(dateOf(m.day)) + ' · ' + m.time + '</span></h4>' +
       '<div class="s-big">' + num(m.shown) + ' <span class="muted s-src">' + (m.onSite !== null ? 'no local' : 'assistência (' + esc(m.assistenciaSource) + ')') + '</span></div>' +
-      (m.onSite !== null ? '<div class="muted">Assistência + crianças no Kids + crianças no auditório + adultos fora das portas</div>' : '') +
       delta(m.shown, m.previous ? m.previous.shown : null) +
+      (m.onSite !== null ? '<div class="muted">Assistência + crianças no Kids + crianças no auditório + adultos fora das portas</div>' : '') +
       '<dl class="s-kv"><dt>Atrasos</dt><dd>' + late + '</dd><dt>Devocional</dt><dd>' + dev + '</dd>' +
       (m.onSite !== null ? '<dt>Assistência</dt><dd>' + num(m.assistencia) + ' <span class="muted">(' + esc(m.assistenciaSource) + ')</span></dd>' : '') +
       (m.previous ? '<dt>Semana anterior</dt><dd>' + num(m.previous.shown) + (m.previous.latePct !== null ? ' · atrasos ' + dec(m.previous.latePct) + '%' : '') + '</dd>' : '') +
@@ -102,8 +102,8 @@
     var comparable = p.meetings && p.withData === p.meetings && t.withData === t.meetings && p.reports === t.reports;
     return '<article class="s-card s-total"><h4>Total do domingo <span class="muted">· soma das ' + t.meetings + ' reuniões · ' + shortFmt.format(dateOf(w.sunday)) + '</span></h4>' +
       '<div class="s-big">' + num(t.shown) + ' <span class="muted s-src">' + (t.reports === t.meetings ? 'no local' : 'no local / assistência') + '</span>' + covers(t.withData, t.meetings) + '</div>' +
-      '<div class="muted">' + (t.reports === t.meetings ? 'Assistência + crianças + adultos fora das portas, como nos cartões.' : 'Como nos cartões: no local nas reuniões com relatório (' + t.reports + ' de ' + t.meetings + '), só a assistência nas outras.') + '</div>' +
       delta(t.shown, comparable ? p.shown : null) +
+      '<div class="muted">' + (t.reports === t.meetings ? 'Assistência + crianças + adultos fora das portas, como nos cartões.' : 'Como nos cartões: no local nas reuniões com relatório (' + t.reports + ' de ' + t.meetings + '), só a assistência nas outras.') + '</div>' +
       (cats ? '<div class="s-cats">' + cats + '</div>' + (t.reports < t.meetings ? '<div class="s-warn">Relatórios guardados: ' + t.reports + ' de ' + t.meetings + '; as categorias só somam esses.</div>' : '')
             : '<div class="muted">Voluntários, visitantes, Hillsong Kids e decisões aparecem quando os relatórios das reuniões estiverem guardados.</div>') +
       '<div class="muted">' + (cats ? 'Entre parênteses, o domingo anterior (só quando está completo). ' : '') + 'A soma conta duas vezes quem esteve em mais de uma reunião.</div></article>';
