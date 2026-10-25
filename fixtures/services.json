@@ -17,6 +17,7 @@
      "end": "2026-10-18T10:30:00Z",
      "status": "done",
      "count": 138,
+     "total": null,
      "partial": false,
      "special": false,
      "people": {
@@ -49,6 +50,7 @@
      "end": "2026-10-18T12:30:00Z",
      "status": "running",
      "count": 419,
+     "total": null,
      "partial": false,
      "special": false,
      "people": {
@@ -81,6 +83,7 @@
      "end": "2026-10-18T18:30:00Z",
      "status": "unknown",
      "count": null,
+     "total": null,
      "partial": false,
      "special": false,
      "people": {
@@ -109,6 +112,7 @@
      "end": "2026-10-21T21:30:00Z",
      "status": "unknown",
      "count": null,
+     "total": null,
      "partial": false,
      "special": false,
      "people": {}
