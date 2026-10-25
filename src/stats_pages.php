@@ -59,8 +59,8 @@ function report_save($con, string $user, DateTimeImmutable $now, array $in): arr
     if (!$meeting) {
         return ['Essa reunião não existe.', null];
     }
-    if (parse_ts($meeting['window_start']) > $now->setTimezone(utc())) {
-        return ['A reunião ainda não começou.', null];
+    if (!report_window_open($meeting['window_start'], $now)) {
+        return ['O relatório só pode ser preenchido a partir de ' . (REPORT_OPEN_BEFORE_MIN / 60) . ' horas antes da reunião.', null];
     }
 
     $values = [];
@@ -215,20 +215,25 @@ function stats_progression(array $entries, DateTimeImmutable $start, DateTimeImm
 
 // ---------------------------------------------------------------- the page's data
 
-/** This week (the Sunday's week) against the week before. */
-function stats_week_data($con, DateTimeImmutable $now, string $sunday): array
+/**
+ * This week (Monday to Sunday, from $monday) against the week before. The Sunday meetings, the last day of the week, are
+ * what the totals, the progression and the exit speed are about.
+ */
+function stats_week_data($con, DateTimeImmutable $now, string $monday): array
 {
-    $prevSunday = (new DateTimeImmutable($sunday))->modify('-7 days')->format('Y-m-d');
-    $end = (new DateTimeImmutable($sunday))->modify('+6 days')->format('Y-m-d');
+    $prevMonday = (new DateTimeImmutable($monday))->modify('-7 days')->format('Y-m-d');
+    $sunday = (new DateTimeImmutable($monday))->modify('+6 days')->format('Y-m-d');
+    $prevSunday = (new DateTimeImmutable($prevMonday))->modify('+6 days')->format('Y-m-d');
+    $end = $sunday;
     $settings = stats_settings($con);
-    services_week($con, $now, $prevSunday);    // bring both weeks' snapshots up to date
-    services_week($con, $now, $sunday);
+    services_week($con, $now, $prevMonday);    // bring both weeks' snapshots up to date
+    services_week($con, $now, $monday);
 
     $mine = $prev = [];
-    foreach (stats_rows($con, $prevSunday, $end) as $r) {
+    foreach (stats_rows($con, $prevMonday, $end) as $r) {
         $m = stats_meeting($r, $now);
         $m['dow'] = (int)$r['dow'];
-        if ($r['day'] >= $sunday) {
+        if ($r['day'] >= $monday) {
             $mine[] = $m;
         } else {
             $prev[] = $m;
@@ -261,7 +266,7 @@ function stats_week_data($con, DateTimeImmutable $now, string $sunday): array
     $entriesNow = $sundayNow ? $entriesFor($sunday) : [];
     $entriesPrev = $sundayPrev ? $entriesFor($prevSunday) : [];
     $durations = [];
-    foreach (scheduled_services($con, $sunday) as $s) {
+    foreach (scheduled_services($con, $monday) as $s) {
         $durations[substr($s['start_time'], 0, 5)] = (int)$s['duration_min'];
     }
     foreach ($sundayNow as $m) {
@@ -281,8 +286,9 @@ function stats_week_data($con, DateTimeImmutable $now, string $sunday): array
     }
 
     return [
-        'sunday' => $sunday, 'prevSunday' => $prevSunday, 'prev' => $prevSunday, 'next' => (new DateTimeImmutable($sunday))->modify('+7 days')->format('Y-m-d'),
-        'isCurrent' => $sunday === week_start($now->setTimezone($local)->format('Y-m-d')),
+        'weekStart' => $monday, 'sunday' => $sunday, 'prevSunday' => $prevSunday, 'prev' => $prevMonday,
+        'next' => (new DateTimeImmutable($monday))->modify('+7 days')->format('Y-m-d'),
+        'isCurrent' => $monday === week_start($now->setTimezone($local)->format('Y-m-d')),
         'meetings' => $mine,
         'sundayTotal' => stats_totals($sundayNow),
         'prevSundayTotal' => stats_totals($sundayPrev),

@@ -9,7 +9,7 @@ church meeting. Runs on `altair` (Apache + mod_php, Postgres in Docker).
 | URL | What |
 |---|---|
 | `/` | charts: entries/exits per interval, and the estimated balance of people inside |
-| `/reunioes` | attendance per meeting for a week (Sunday to Saturday), plus event cards |
+| `/reunioes` | attendance per meeting for a week (**Monday to Sunday**), event cards, and the week's totals at the bottom |
 | `/api/chart`, `/api/services` | JSON for those pages |
 | `/admin` | login-protected admin area (below) |
 | `/load_from_request.php` | where the device POSTs; requires its `Authorization` token |
@@ -38,7 +38,7 @@ Clean URLs are Apache rewrite rules in the vhost (`deploy/apache/`). `sql/`, `sr
 
 ## Meeting report (info button on each card)
 
-Every card on `/reunioes` has a clipboard-icon button (disabled until the meeting has started) that opens a dialog (all in `reunioes.html`, nothing is saved or sent to
+Every card on `/reunioes` has a clipboard-icon button (disabled until 2 hours before the meeting starts: `REPORT_OPEN_BEFORE_MIN` in `src/services.php`, checked again on the server when saving; the API gives each meeting a `reportOpen` flag so the browser's clock does not matter) that opens a dialog (all in `reunioes.html`, nothing is saved or sent to
 the server for anonymous visitors). For a meeting: seven counts (Assistência, Voluntários, Visitantes, Adultos fora das portas, Crianças no Kids,
 Crianças/bebés no auditório, Decisões) and the four names (MC, Oferta, Líder Louvor, Pregação, pre-filled from the
 card), all required; "Gerar texto" builds a WhatsApp-style (`*bold*`) report starting with a title line and an
@@ -50,7 +50,7 @@ puts it on the clipboard. For an event card the text is just the peak count.
 
 ## Statistics (`/admin/estatisticas`, login required)
 
-Week (per meeting: attendance vs the same meeting last week, late arrivals, devotional head-count, saved report numbers;
+Week (Monday to Sunday; per meeting: attendance vs the same meeting last week, late arrivals, devotional head-count, saved report numbers;
 the Sunday total; exit speed; a progression chart per meeting with last week's dashed), month (averages per meeting slot,
 previous month beside it) and year (bars Sunday after Sunday: total attendance, volunteers, visitors, kids, decisions;
 every chart has a table view). Charts are plain SVG in `assets/stats.js`; data comes from `/admin/api/stats` (`src/stats_pages.php`).

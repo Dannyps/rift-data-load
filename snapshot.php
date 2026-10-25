@@ -28,8 +28,8 @@ $weeks = isset($opts['week'])
     ? [week_start($opts['week'])]
     : [(new DateTimeImmutable($this_week))->modify('-7 days')->format('Y-m-d'), $this_week];
 
-foreach ($weeks as $sunday) {
-    $view = services_week($con, $now, $sunday);
+foreach ($weeks as $monday) {
+    $view = services_week($con, $now, $monday);
     if (isset($opts['print'])) {
         echo json_encode($view, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), "\n";
     }

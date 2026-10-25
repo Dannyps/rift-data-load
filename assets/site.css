@@ -935,6 +935,37 @@ body.reunioes .form-error::before { margin-top: 1px; }
   body.reunioes .cards { gap: 14px; }
 }
 
+/* totals of the week, below the days: same pink section title as a day, then one tile per figure */
+body.reunioes .weektotals { margin-top: 40px; }
+body.reunioes .weektotals[hidden] { display: none; }
+body.reunioes .weektotals h2 {
+  display: flex; align-items: center; gap: 12px; margin: 0 0 18px; padding-left: 18px;
+  background: linear-gradient(var(--section), var(--section)) left center / 5px 80% no-repeat;
+  color: var(--text-primary); font-size: 24px; font-weight: 800; letter-spacing: -.025em; line-height: 1.2;
+}
+body.reunioes .weektotals h2::after { content: ""; flex: 1; height: 1px; background: color-mix(in srgb, var(--text-muted) 28%, transparent); }
+body.reunioes .wt-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+body.reunioes .wt-tile {
+  --c: var(--accent);
+  display: flex; flex-direction: column; gap: 4px; padding: 16px 18px; border-radius: var(--radius);
+  background: color-mix(in srgb, var(--c) var(--role-tint), var(--surface-1)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 22%, transparent);
+}
+body.reunioes .wt-tile.wt-total {
+  grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 4px 18px; color: #fff; box-shadow: var(--shadow-sm);
+  background: linear-gradient(160deg, #3a66f5, #1f3fb3);       /* white text: 4.8:1 or more over the whole panel */
+}
+body.reunioes .wt-total .wt-label, body.reunioes .wt-total .wt-note { color: rgba(255, 255, 255, .92); }
+body.reunioes .wt-vol { --c: var(--series-in); }
+body.reunioes .wt-vis { --c: var(--series-bal); }
+body.reunioes .wt-kids { --c: var(--series-4); }
+body.reunioes .wt-dec { --c: var(--series-5); }
+body.reunioes .wt-label { font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-secondary); }
+body.reunioes .wt-value { font-size: 34px; font-weight: 300; letter-spacing: -.03em; line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+body.reunioes .wt-total .wt-value { font-size: 56px; color: #fff; }
+body.reunioes .wt-note { font-size: 13px; color: var(--text-muted); }
+body.reunioes .wt-notes { margin: 14px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 13px; color: var(--text-secondary); }
+body.reunioes .wt-notes li::before { content: "·"; margin-right: 8px; color: var(--text-muted); font-weight: 700; }
+
 /* ===================================================================== 4. Admin area (/admin/*), body.admin */
 body.admin header { align-items: center; }
 body.admin header .title { display: flex; align-items: center; gap: 12px; }
