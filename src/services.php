@@ -458,8 +458,12 @@ function week_view($con, DateTimeImmutable $now, string $monday, array $services
         $events[$r['day']] = $r;
     }
     $reports = [];
-    foreach (pg_fetch_all(pg_query_params($con, "SELECT day, start_time, assistencia, kids, auditorio, adultos_fora, voluntarios, visitantes, decisoes FROM meeting_reports WHERE day BETWEEN $1::date AND $1::date + 6", [$monday])) ?: [] as $r) {
+    foreach (pg_fetch_all(pg_query_params($con, "SELECT day, start_time, assistencia, kids, auditorio, adultos_fora, voluntarios, visitantes, decisoes FROM meeting_reports WHERE complete AND day BETWEEN $1::date AND $1::date + 6", [$monday])) ?: [] as $r) {
         $reports[$r['day'] . ' ' . $r['start_time']] = $r;
+    }
+    $drafts = [];     // saved but incomplete reports: flagged on the card, never counted
+    foreach (pg_fetch_all(pg_query_params($con, "SELECT day, start_time FROM meeting_reports WHERE NOT complete AND day BETWEEN $1::date AND $1::date + 6", [$monday])) ?: [] as $r) {
+        $drafts[$r['day'] . ' ' . $r['start_time']] = true;
     }
 
     $people = week_people($con, $monday, $services);
@@ -501,6 +505,7 @@ function week_view($con, DateTimeImmutable $now, string $monday, array $services
             'reportOpen' => report_window_open($s['window_start'], $now),     // the report can be filled in from 2 hours before the start
             'count' => $count,
             'total' => $total,
+            'reportDraft' => isset($drafts[$s['day'] . ' ' . $s['start_time']]),
             'partial' => $status !== 'unknown' && $row && $row['partial'] === 't',
             'special' => $s['special'] === 't',
             'people' => $people[$s['day'] . ' ' . substr($s['start_time'], 0, 5)] ?? null,

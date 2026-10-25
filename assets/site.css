@@ -912,6 +912,11 @@ body.reunioes .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0,
 }
 body.reunioes .dlg-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 22px; }
 body.reunioes .dlg-actions button { min-height: 42px; padding: 0 22px; }
+/* Guardar / Copiar texto stay visible at the bottom of the dialog while the long form scrolls */
+body.reunioes .dlg-foot { position: sticky; bottom: -24px; z-index: 1; margin: 22px -24px -24px; padding: 14px 24px 18px; background: var(--surface-1); border-top: 1px solid var(--grid); }
+body.reunioes .dlg-foot .dlg-actions { margin-top: 0; }
+body.reunioes .save-status { margin-top: 10px; min-height: 1.4em; }
+body.reunioes .save-status.dirty { color: color-mix(in srgb, var(--series-4) 75%, var(--text-primary)); font-weight: 600; }
 body.reunioes #reportOut { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--grid); }
 body.reunioes #reportOut > label { display: block; margin-bottom: 6px; font-weight: 600; }
 body.reunioes #reportText {

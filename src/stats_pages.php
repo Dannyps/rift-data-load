@@ -13,13 +13,13 @@ const REPORT_NAMES = ['mc', 'oferta', 'lider', 'pregacao'];
 
 function report_get($con, string $day, string $time): ?array
 {
-    $r = pg_fetch_assoc(pg_query_params($con, "SELECT * FROM meeting_reports WHERE day = $1 AND start_time = $2", [$day, $time]));
+    $r = pg_fetch_assoc(pg_query_params($con, "SELECT *, to_char(saved_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS saved_iso FROM meeting_reports WHERE day = $1 AND start_time = $2", [$day, $time]));
     if (!$r) {
         return null;
     }
-    $out = ['savedBy' => $r['saved_by'], 'savedAt' => $r['saved_at']];
+    $out = ['savedBy' => $r['saved_by'], 'savedAt' => $r['saved_iso'], 'complete' => $r['complete'] === 't'];
     foreach (REPORT_NUMBERS as $k) {
-        $out[$k] = (int)$r[$k];
+        $out[$k] = $r[$k] === null ? null : (int)$r[$k];
     }
     foreach (REPORT_NAMES as $k) {
         $out[$k] = $r[$k];
@@ -63,9 +63,17 @@ function report_save($con, string $user, DateTimeImmutable $now, array $in): arr
         return ['O relatório só pode ser preenchido a partir de ' . (REPORT_OPEN_BEFORE_MIN / 60) . ' horas antes da reunião.', null];
     }
 
+    // An empty number is allowed (a draft); anything typed must be a whole number. The report is complete when
+    // every number and every name is filled in; only complete reports count in the statistics and the card total.
     $values = [];
+    $complete = true;
     foreach (REPORT_NUMBERS as $k) {
         $v = trim((string)($in[$k] ?? ''));
+        if ($v === '') {
+            $values[$k] = null;
+            $complete = false;
+            continue;
+        }
         if (!preg_match('/^\d{1,6}$/', $v)) {
             return ["Valor inválido em «$k»: indique um número inteiro (0 ou mais).", null];
         }
@@ -77,16 +85,19 @@ function report_save($con, string $user, DateTimeImmutable $now, array $in): arr
             return ["O nome em «$k» é demasiado longo.", null];
         }
         $values[$k] = $v;
+        if ($v === '') {
+            $complete = false;
+        }
     }
 
     pg_query_params($con, "
-        INSERT INTO meeting_reports (day, start_time, assistencia, voluntarios, visitantes, adultos_fora, kids, auditorio, decisoes, mc, oferta, lider, pregacao, saved_by, saved_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, now())
+        INSERT INTO meeting_reports (day, start_time, assistencia, voluntarios, visitantes, adultos_fora, kids, auditorio, decisoes, mc, oferta, lider, pregacao, saved_by, saved_at, complete)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, now(), $15)
         ON CONFLICT (day, start_time) DO UPDATE SET assistencia = EXCLUDED.assistencia, voluntarios = EXCLUDED.voluntarios, visitantes = EXCLUDED.visitantes,
             adultos_fora = EXCLUDED.adultos_fora, kids = EXCLUDED.kids, auditorio = EXCLUDED.auditorio, decisoes = EXCLUDED.decisoes,
-            mc = EXCLUDED.mc, oferta = EXCLUDED.oferta, lider = EXCLUDED.lider, pregacao = EXCLUDED.pregacao, saved_by = EXCLUDED.saved_by, saved_at = now()",
+            mc = EXCLUDED.mc, oferta = EXCLUDED.oferta, lider = EXCLUDED.lider, pregacao = EXCLUDED.pregacao, saved_by = EXCLUDED.saved_by, saved_at = now(), complete = EXCLUDED.complete",
         [$day, $time, $values['assistencia'], $values['voluntarios'], $values['visitantes'], $values['adultos_fora'], $values['kids'], $values['auditorio'], $values['decisoes'],
-         $values['mc'], $values['oferta'], $values['lider'], $values['pregacao'], $user]);
+         $values['mc'], $values['oferta'], $values['lider'], $values['pregacao'], $user, $complete ? 't' : 'f']);
 
     return [null, report_get($con, $day, $time)];
 }
@@ -100,7 +111,7 @@ function stats_rows($con, string $from, string $to): array
         SELECT s.day, to_char(s.start_time, 'HH24:MI') AS time, extract(dow FROM s.day)::int AS dow, s.name, s.window_end, s.peak, s.corrected_peak, s.partial, s.frozen,
                s.arrivals_total, s.arrivals_late, s.late_grace_min, s.devotional_at, s.devotional_peak,
                r.assistencia AS r_assistencia, r.voluntarios, r.visitantes, r.adultos_fora, r.kids, r.auditorio, r.decisoes
-        FROM service_snapshots s LEFT JOIN meeting_reports r ON r.day = s.day AND r.start_time = s.start_time
+        FROM service_snapshots s LEFT JOIN meeting_reports r ON r.day = s.day AND r.start_time = s.start_time AND r.complete
         WHERE s.day BETWEEN $1::date AND $2::date ORDER BY s.day, s.start_time", [$from, $to])) ?: [];
 }
 

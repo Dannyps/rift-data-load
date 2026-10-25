@@ -55,12 +55,17 @@
   </div>
   <div class="dlg-body">
     <form id="reportForm" novalidate>
-      <p class="hint sub" id="reportIntro">Preencha todos os campos e carregue em «Gerar texto». Nada fica guardado: ao fechar, os valores perdem-se.</p>
+      <p class="hint sub" id="reportIntro"></p>
       <fieldset><legend>Contagens</legend><div id="numFields"></div></fieldset>
       <fieldset><legend>Quem</legend><div class="grid2" id="nameFields"></div></fieldset>
       <div class="form-error" id="formError" role="alert" hidden></div>
-      <div class="dlg-actions"><button type="submit" class="primary">Gerar texto</button></div>
-      <div class="sub" id="saveNote" role="status" aria-live="polite"></div>
+      <div class="dlg-foot">
+        <div class="dlg-actions">
+          <button type="submit" class="primary" id="saveBtn">Guardar</button>
+          <button type="button" id="copyTextBtn">Copiar texto</button>
+        </div>
+        <div class="save-status sub" id="saveNote" role="status" aria-live="polite"></div>
+      </div>
     </form>
     <div id="reportOut" hidden>
       <label for="reportText" class="sub">Texto pronto a copiar</label>
@@ -136,7 +141,8 @@ function serviceCard(s, date) {
   }
   const partial = s.partial && s.status !== 'unknown' ? '<div class="note">Dados parciais: o contador começou depois do início da reunião.</div>' : '';
   const id = meetingId(date, s.time);
-  return `<div class="card" id="${id}">${infoButton('s|' + date + '|' + s.time, !s.reportOpen)}${linkButton(id)}<div class="title"><span>${esc(s.name)}${s.special ? ' <span class="badge">dia especial</span>' : ''}</span><span class="time">${s.time}</span></div>${count}${state}${partial}${peopleBlock(s)}</div>`;
+  const draft = s.reportDraft ? '<div class="note">Relatório em rascunho: falta concluir e guardar.</div>' : '';
+  return `<div class="card" id="${id}">${infoButton('s|' + date + '|' + s.time, !s.reportOpen)}${linkButton(id)}<div class="title"><span>${esc(s.name)}${s.special ? ' <span class="badge">dia especial</span>' : ''}</span><span class="time">${s.time}</span></div>${count}${state}${partial}${draft}${peopleBlock(s)}</div>`;
 }
 
 function eventCard(e, date) {
@@ -332,13 +338,14 @@ async function openReport(key) {
       else if (r.status === 401) session = { loggedIn: false };   // session expired
     } catch (e) { /* offline: behave as anonymous */ }
   }
-  current = { key, card };
+  current = { key, card, saved };
   const dateText = fullDateFmt.format(dateOf(card.date));
   $('reportTitle').textContent = card.kind === 'e' ? 'Evento' : card.name;
   $('reportSub').textContent = dateText + (card.kind === 'e' ? ` · ${card.start}–${card.end}` : ` · ${card.time}`);
   $('reportOut').hidden = true;
   $('copyNote').textContent = '';
   $('copyBtn').textContent = 'Copiar';
+  $('copyTextBtn').textContent = 'Copiar texto';
   $('formError').hidden = true;
 
   if (card.kind === 'e') {
@@ -354,17 +361,19 @@ async function openReport(key) {
       fromCard.voluntarios = suggest.voluntarios;
       hints.voluntarios = `Sugestão: ${suggest.voluntarios} pessoas no devocional${suggest.devotionalAt ? ' das ' + hhmm(suggest.devotionalAt) : ''}. Corrija se for preciso.`;
     }
-    const field = (id) => saved && saved[SAVED_KEY[id] || id] !== undefined ? saved[SAVED_KEY[id] || id] : (fromCard[id] ?? '');
+    // a saved draft may have empty numbers/names: those fall back to what the card/counter suggests
+    const field = (id) => saved && saved[SAVED_KEY[id] || id] !== undefined && saved[SAVED_KEY[id] || id] !== null ? saved[SAVED_KEY[id] || id] : (fromCard[id] ?? '');
     $('numFields').innerHTML = REPORT_NUMBERS.map(([id, label, hint]) =>
       fieldHtml(id, label, field(id), 'inputmode="numeric" pattern="[0-9]*"', hints[id] || hint)).join('');
     $('nameFields').innerHTML = REPORT_NAMES.map(([id, label, role]) =>
-      fieldHtml(id, label, saved ? saved[id] : ((card.people && card.people[role] && card.people[role].value) || ''), 'maxlength="100"')).join('');
-    $('saveNote').textContent = '';
-    $('reportIntro').textContent = session.loggedIn && session.canReport
-      ? `Sessão iniciada como ${session.name || session.user}: ao gerar o texto, o relatório fica guardado nas estatísticas${saved ? ' (já havia um guardado: foi carregado)' : ''}.`
-      : session.loggedIn ? `A sua conta só permite consulta: pode gerar o texto${saved ? ' (o relatório já guardado foi carregado)' : ''}, mas nada fica guardado.`
-      : (saved ? 'Este relatório já foi preenchido e foi carregado. Pode gerar o texto; sem sessão iniciada as alterações não ficam guardadas.'
-        : 'Preencha todos os campos e carregue em «Gerar texto». Sem sessão iniciada nada fica guardado: ao fechar, os valores perdem-se.');
+      fieldHtml(id, label, (saved && saved[id]) || (card.people && card.people[role] && card.people[role].value) || '', 'maxlength="100"')).join('');
+    canSave = !!(session.loggedIn && session.canReport);
+    $('saveBtn').hidden = !canSave;
+    $('reportIntro').textContent = canSave
+      ? 'Preencha o que já souber e carregue em «Guardar»: pode voltar mais tarde para concluir. «Copiar texto» só funciona com todos os campos preenchidos.'
+      : 'A sua conta só permite consulta: pode copiar o texto (todos os campos preenchidos), mas nada fica guardado.';
+    baseline = formSnapshot();
+    showSaveStatus();
   }
   dlg.showModal();
   fitViewport();
@@ -393,8 +402,6 @@ dlg.addEventListener('focusin', e => {
   if (e.target.matches('input, textarea')) setTimeout(() => e.target.scrollIntoView({ block: 'center' }), 300);
 });
 
-function closeReport() { dlg.close(); }
-
 dlg.addEventListener('close', () => {
   dlg.style.removeProperty('--vvh');
   dlg.style.removeProperty('--vvtop');
@@ -411,11 +418,41 @@ $('days').addEventListener('click', e => {
   if (b) openReport(b.dataset.report);
 });
 
-// any edit makes the text on screen stale
+let canSave = false;
+let baseline = '';       // the field values as last loaded/saved: anything different is an unsaved change
+
+const formSnapshot = () => JSON.stringify([...$('reportForm').querySelectorAll('input')].map(i => i.value.trim()));
+const isDirty = () => !$('reportForm').hidden && formSnapshot() !== baseline;
+
+function savedAtText(saved) {
+  const who = saved.savedBy ? ` por ${saved.savedBy}` : '';
+  return `${saved.savedAt ? 'Guardado às ' + hhmm(saved.savedAt) : 'Guardado'}${who}`;
+}
+
+// One line that says where the report stands: never saved, edited since the last save, or saved.
+function showSaveStatus(msg) {
+  const el = $('saveNote');
+  el.classList.toggle('dirty', isDirty());
+  if (msg) { el.textContent = msg; return; }
+  if (!canSave) { el.textContent = ''; return; }
+  const saved = current && current.saved;
+  if (isDirty()) el.textContent = 'Alterações por guardar.';
+  else if (saved) el.textContent = `${savedAtText(saved)}${saved.complete === false ? ' · rascunho: faltam campos' : ' ✓'}.`;
+  else el.textContent = 'Ainda não guardado.';
+}
+
+// closing with unsaved edits asks first
+function confirmDiscard() { return !(canSave && isDirty()) || confirm('Tem alterações por guardar. Fechar mesmo assim?'); }
+function closeReport() { if (confirmDiscard()) dlg.close(); }
+dlg.addEventListener('cancel', e => { if (!confirmDiscard()) e.preventDefault(); });   // Esc
+
 $('reportForm').addEventListener('input', e => {
-  $('reportOut').hidden = true;
+  $('reportOut').hidden = true;   // any edit makes the copied text stale
   $('copyNote').textContent = '';
+  $('copyTextBtn').textContent = 'Copiar texto';
+  $('formError').hidden = true;
   if (e.target.matches('input')) clearError(e.target);
+  showSaveStatus();
 });
 
 function setError(input, msg) {
@@ -431,8 +468,8 @@ function clearError(input) {
   el.hidden = true;
 }
 
-$('reportForm').addEventListener('submit', e => {
-  e.preventDefault();
+// Reads and checks the fields. requireAll: every field must be filled (copying); otherwise empty is fine (saving a draft).
+function readForm(requireAll) {
   const values = {};
   let firstBad = null;
   for (const input of $('reportForm').querySelectorAll('input')) {
@@ -441,57 +478,90 @@ $('reportForm').addEventListener('submit', e => {
     clearError(input);
     const isNumber = REPORT_NUMBERS.some(([id]) => id === input.name);
     let msg = null;
-    if (v === '') msg = 'Obrigatório.';
-    else if (isNumber && !/^\d+$/.test(v)) msg = 'Indique um número inteiro (0 ou mais).';
+    if (v === '') msg = requireAll ? 'Obrigatório.' : null;
+    else if (isNumber && !/^\d{1,6}$/.test(v)) msg = 'Indique um número inteiro (0 ou mais).';
     if (msg) { setError(input, msg); firstBad ??= input; }
   }
-  const err = $('formError');
-  if (firstBad) {
-    err.textContent = 'Há campos por preencher ou inválidos. Corrija-os para gerar o texto.';
-    err.hidden = false;
-    $('reportOut').hidden = true;
-    firstBad.focus();
-    return;
-  }
-  err.hidden = true;
-  $('reportText').value = buildReport(current.card, values);
-  $('reportOut').hidden = false;
-  if (session.loggedIn && session.canReport) saveReport(values);
-  $('copyBtn').textContent = 'Copiar';
-  $('copyNote').textContent = '';
-  fitText();
-  $('reportOut').scrollIntoView({ block: 'nearest' });
-});
+  return { values, firstBad };
+}
 
-async function saveReport(values) {
-  const note = $('saveNote');
+function formProblem(firstBad, text) {
+  const err = $('formError');
+  err.textContent = text;
+  err.hidden = false;
+  firstBad.focus();
+}
+
+let saving = false;
+async function saveReport() {
+  if (saving) return;
+  const { values, firstBad } = readForm(false);
+  if (firstBad) return formProblem(firstBad, 'Há campos inválidos. Corrija-os para guardar.');
+  if (Object.values(values).every(v => v === '')) return formProblem($('reportForm').querySelector('input'), 'Preencha pelo menos um campo para guardar.');
+  $('formError').hidden = true;
   const body = new URLSearchParams({ csrf: session.csrf, day: current.card.date, time: current.card.time });
   for (const [id] of REPORT_NUMBERS) body.set(SAVED_KEY[id] || id, values[id]);
   for (const [id] of REPORT_NAMES) body.set(id, values[id]);
-  note.textContent = 'A guardar…';
+  saving = true;
+  $('saveBtn').disabled = true;
+  showSaveStatus('A guardar…');
   try {
     const r = await fetch('/admin/api/report', { method: 'POST', body, credentials: 'same-origin' });
     const j = await r.json().catch(() => ({}));
-    note.textContent = r.ok ? 'Relatório guardado nas estatísticas ✓' : (r.status === 401 ? 'A sessão expirou: o texto foi gerado mas não ficou guardado. Inicie sessão outra vez.' : `Não foi possível guardar: ${j.error || r.status}`);
+    if (r.ok) {
+      current.saved = j.report;
+      baseline = formSnapshot();
+      showSaveStatus();
+      load();   // the card shows the new total / draft mark
+    } else if (r.status === 401) {
+      showSaveStatus('A sessão expirou: nada foi guardado. Inicie sessão outra vez.');
+    } else {
+      showSaveStatus(`Não foi possível guardar: ${j.error || r.status}`);
+    }
   } catch (e) {
-    note.textContent = 'Não foi possível guardar (sem ligação). O texto foi gerado na mesma.';
+    showSaveStatus('Não foi possível guardar (sem ligação). Tente outra vez.');
+  } finally {
+    saving = false;
+    $('saveBtn').disabled = false;
   }
 }
 
-$('copyBtn').addEventListener('click', async () => {
-  const text = $('reportText').value;
+async function copyTextOf(text, button, note) {
   let done = false;
   try {
     await navigator.clipboard.writeText(text);
     done = true;
   } catch (e) {
+    $('reportOut').hidden = false;    // fallback: show the text selected so Ctrl+C works
+    $('reportText').value = text;
+    fitText();
     $('reportText').focus();
     $('reportText').select();
     try { done = document.execCommand('copy'); } catch (e2) { done = false; }
   }
-  $('copyBtn').textContent = done ? 'Copiado ✓' : 'Copiar';
-  $('copyNote').textContent = done ? 'Texto copiado.' : 'Não foi possível copiar automaticamente: o texto está selecionado, use Ctrl+C.';
-  if (done) setTimeout(() => { $('copyBtn').textContent = 'Copiar'; $('copyNote').textContent = ''; }, 2500);
+  const idle = button.dataset.idle || button.textContent;
+  button.dataset.idle = idle;
+  button.textContent = done ? 'Copiado ✓' : idle;
+  note.textContent = done ? 'Texto copiado.' : 'Não foi possível copiar automaticamente: o texto está selecionado, use Ctrl+C.';
+  if (done) setTimeout(() => { button.textContent = idle; note.textContent = ''; }, 2500);
+}
+
+// copy for meetings: all fields needed
+$('copyTextBtn').addEventListener('click', () => {
+  const { values, firstBad } = readForm(true);
+  if (firstBad) return formProblem(firstBad, 'Para copiar o texto, preencha todos os campos.');
+  $('formError').hidden = true;
+  const text = buildReport(current.card, values);
+  $('reportText').value = text;
+  copyTextOf(text, $('copyTextBtn'), $('copyNote'));
+});
+// copy for events (and the fallback panel): the text already in the box
+$('copyBtn').addEventListener('click', () => copyTextOf($('reportText').value, $('copyBtn'), $('copyNote')));
+
+// Enter in a field saves (or copies, for accounts that cannot save)
+$('reportForm').addEventListener('submit', e => {
+  e.preventDefault();
+  if (canSave) saveReport(); else $('copyTextBtn').click();
 });
 
 async function load() {
