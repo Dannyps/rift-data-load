@@ -64,6 +64,8 @@ function ensure_schema_is_valid($con)
         AND to_regclass('auth_attempts') IS NOT NULL
         AND to_regclass('device_seen') IS NOT NULL
         AND EXISTS (SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'meeting_reports' AND column_name = 'complete')
+        AND EXISTS (SELECT 1 FROM information_schema.columns
                     WHERE table_name = 'event_snapshots' AND column_name = 'correction_note')
         AND EXISTS (SELECT 1 FROM information_schema.columns
                     WHERE table_name = 'records' AND column_name = 'received_at')

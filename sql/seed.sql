@@ -334,5 +334,12 @@ CREATE TABLE IF NOT EXISTS meeting_reports (
     PRIMARY KEY (day, start_time)
 );
 
+-- A report can be saved as a draft (numbers left empty, complete = false); statistics and the card total ignore drafts.
+ALTER TABLE meeting_reports ADD COLUMN IF NOT EXISTS complete boolean NOT NULL DEFAULT true;
+ALTER TABLE meeting_reports
+    ALTER COLUMN assistencia DROP NOT NULL, ALTER COLUMN voluntarios DROP NOT NULL, ALTER COLUMN visitantes DROP NOT NULL,
+    ALTER COLUMN adultos_fora DROP NOT NULL, ALTER COLUMN kids DROP NOT NULL, ALTER COLUMN auditorio DROP NOT NULL,
+    ALTER COLUMN decisoes DROP NOT NULL;
+
 -- the "Devocional" time written in the plan (local wall-clock 'YYYY-MM-DD HH:MM')
 ALTER TABLE pco_plans ADD COLUMN IF NOT EXISTS devotional_start text;
