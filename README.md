@@ -8,13 +8,15 @@ church meeting. Runs on `altair` (Apache + mod_php, Postgres in Docker).
 
 | URL | What |
 |---|---|
-| `/` | charts: entries/exits per interval, and the estimated balance of people inside |
-| `/reunioes` | attendance per meeting for a week (**Monday to Sunday**), event cards, and the week's totals at the bottom |
-| `/api/chart`, `/api/services` | JSON for those pages |
-| `/admin` | login-protected admin area (below) |
-| `/load_from_request.php` | where the device POSTs; requires its `Authorization` token |
+| `/` | charts: entries/exits per interval, and the estimated balance of people inside (needs an account) |
+| `/reunioes` | attendance per meeting for a week (**Monday to Sunday**), event cards, and the week's totals at the bottom (needs an account) |
+| `/api/chart`, `/api/services` | JSON for those pages (401 without an account) |
+| `/entrar`, `/registar`, `/esqueci-palavra-passe`, `/repor-palavra-passe`, `/sair`, `/conta` | sign in, sign up, password reset, sign out, my account (the only pages a stranger can open) |
+| `/admin` | admin area, admins only (below) |
+| `/load_from_request.php` | where the device POSTs; requires its `Authorization` token (no account involved) |
 
-Clean URLs are Apache rewrite rules in the vhost (`deploy/apache/`). `sql/`, `src/` and the CLI scripts are not served.
+Clean URLs are Apache rewrite rules in the vhost (`deploy/apache/`). `/` and `/reunioes` go through `gate.php` (serves the static
+page only to an account), the account pages are `account.php`. `sql/`, `src/`, `deploy/`, `tools/`, `fixtures/` and the CLI scripts are not served.
 
 ## How it works
 
@@ -68,21 +70,47 @@ The grace (default 10 min), the devotional fallbacks, the exit hours and the thr
 including the grace they were computed with. Early departures are not implemented (they need the real end time of each meeting).
 The year chart starts on 11 Oct 2026, the first day of counter data.
 
-## Admin area (`/admin`)
+## Accounts, sign-up and the admin area
 
-A login form (`admin.php`, `src/auth.php`; pages in Portuguese). Accounts are in `admin_users` and have a **role**:
+**Nothing on the site is visible without an account** (except the sign-in, sign-up and password pages and the static assets). A
+visitor without a session is sent to `/entrar?next=<where they were going>` (a shared card link, `/reunioes#r-...`, survives the
+login: `assets/auth.js` adds the `#` part to the form); the JSON APIs answer 401 and the pages then go to the sign-in page. Code:
+`src/auth.php` (accounts, sessions, throttles, reset tokens), `account.php` (public pages), `gate.php` (the two pages),
+`admin.php` (admin area), `src/mail.php`, `assets/auth.js`. Pages are in Portuguese. Accounts are in `admin_users`:
 
-- `admin` (Administrador): every admin page. Admins can also hold the **can manage users** privilege: they add and
-  remove users, change roles, reset passwords and grant or withdraw the privilege (there must always be at least one
-  such user, and you can't remove or re-role yourself).
-- `reporter` (Só relatórios): can only save meeting reports (the dialog on each card of `/reunioes`, which saves when
-  logged in) and change their own password. They land on `/reunioes` after logging in; every other `/admin` page and
-  `/admin/api/stats` answer 403. A reporter can't manage users (also enforced by a CHECK constraint).
+- **role** `admin` (Administrador: every admin page; may also hold the *can manage users* privilege: users, requests, access code,
+  there must always be one such user and nobody can remove or re-role themselves), `reporter` (Relatórios: reads the site and saves
+  meeting reports from the dialog on `/reunioes`), `viewer` (Só consulta: only reads the charts and meetings pages). Only admins
+  reach `/admin/*` (others get a redirect or 403) and `/admin/api/stats`; saving a report needs admin or reporter.
+- **status** `active`, `pending` (a sign-up waiting for approval: cannot sign in, sees nothing) or `disabled` (a manager locked it;
+  the session ends at once, the account is re-read on every request).
+- **kind** `person`, or the built-in `display` account `contador` (see *Counter network* below).
 
-Every change is written to the audit log (`/admin/registo`).
+**Sign-up** (`/registar`): name, email, username, password (10+ characters) and the shared **access code** (managers see and change it on
+`/admin/utilizadores`; stored in `settings.signup_code`). Rate limits: 5 requests per IP per hour, 30 per day, 10 wrong codes per IP per
+15 minutes; a hidden field catches robots. The request is stored as `pending`/`viewer`, managers get an email (to
+`root@altair.dannyps.net`) and a count badge next to *Utilizadores* in the admin menu. A manager approves with a role (the person gets
+an email) or rejects (deletes). Accounts made by a manager (or `php admin_user.php`) are active at once.
 
-Pages (admins): Reuniões (weekly meetings), Dias especiais (+ Planning Center sync status), Pessoas, Correções, Contadores
-(manual balance reset), Estatísticas, Utilizadores (one card per user, edit section collapsed), Palavra-passe, Registo.
+**Password reset** (`/esqueci-palavra-passe`): the person gives their email; if an active account has it, a one-use link (valid 1 hour,
+only the SHA-256 is stored, `password_resets`) is mailed from `rift@altair.dannyps.net`; the answer is the same either way (max 3 requests
+per hour per address and per IP). Setting the password ends every other session of that account (`password_changed_at`). Links use the fixed
+`SITE_URL` (`src/auth.php`), never the Host header. Mail is queued in the background through `/usr/sbin/sendmail` (`src/mail.php`;
+`RIFT_SENDMAIL` replaces it in tests). Accounts without an email cannot reset by mail (a manager sets a password, or they add an email in `/conta`).
+
+**Counter network.** `load_from_request.php` records the IP the counter posts from (`device_seen`) only after its token is accepted.
+Requests from that same IP (seen in the last 7 days) are treated as the read-only built-in account `contador` (the TV or kiosk beside
+the counter): they read the two pages and their data, never `/admin`, and cannot save anything. `settings.display_autologin` (on/off,
+switch on `/admin/utilizadores`) turns it off. Everybody behind the same public IP (guests on the wifi) gets the same read-only access;
+visits over IPv6 do not match an IPv4 device address; only `REMOTE_ADDR` is used.
+
+**Sessions:** cookie `rift_session` (Secure, HttpOnly, **SameSite=Lax** so links from other apps arrive signed in, path `/`), kept
+30 days of inactivity in `/var/lib/rift-data-load/sessions` (own directory, cleaned by `tmpfiles.d` after 31 days; PHP's default
+directory is emptied after 24 minutes by Debian), every POST needs a CSRF token, strict CSP on the account and admin pages.
+
+Every change is written to the audit log (`/admin/registo`). Pages (admins): Reuniões (weekly meetings), Dias especiais (+ Planning
+Center sync status), Pessoas, Correções, Contadores (manual balance reset), Estatísticas, Utilizadores (sign-up requests, access
+code, counter-network switch, one card per user with the edit section collapsed), A minha conta (`/conta`, every account), Registo.
 
 - Passwords: argon2id, at least 10 characters. An Apache `$apr1$` hash imported from `.htpasswd` works once and
   is upgraded at the first login. Five failed attempts per user (30 per IP) lock logins for 15 minutes.
@@ -91,10 +119,10 @@ Pages (admins): Reuniões (weekly meetings), Dias especiais (+ Planning Center s
   `class="admin"` or `"stackable"` to a table to get it, and re-run `stackTables(el)` after drawing one dynamically).
 - On phones (up to 720 px) the admin navigation is a slide-in sidebar opened by a menu button (closes with Escape, the
   backdrop, a link or a wider screen); on wider screens it is the top bar.
-- Session cookie: Secure, HttpOnly, SameSite=Strict, limited to `/admin`, 8 h idle timeout; every POST needs a
-  CSRF token; a strict CSP (no inline scripts or styles).
 - First users: `php admin_user.php import-htpasswd dannyps --manage` (reuses the `/internal` password),
-  `php admin_user.php create USER [--manage | --reporter]`, `php admin_user.php list`.
+  `php admin_user.php create USER [--manage | --reporter | --viewer]`, `php admin_user.php list`.
+- Tests: `php tests/auth_test.php` (pure rules); `tools/auth_flows.py` drives the whole thing in a browser against a throwaway
+  database and a fake sendmail (sign-up, approval, locked accounts, viewer limits, reset, counter network, throttles; see its header).
 
 ## Planning Center (people and special days)
 
@@ -128,7 +156,7 @@ class names, so a restyle changes the CSS only. The vhost sends `Cache-Control: 
 **Preview for a CSS rework** (`https://rift-css.dannyps.net`, one label under the main domain; the Cloudflare record is
 DNS only, nothing is cached): a STATIC copy of the site in its own git clone (`/media/ssd/www/rift-css`, branch `css-rework`,
 owned by www-data) fed by invented JSON in `fixtures/` (`tools/make_fixtures.py`) and static admin pages captured from a
-throwaway database (`fixtures/admin/`, `tools/capture_admin_samples.py`). No PHP, no database, no secrets; the device endpoint,
+throwaway database (`fixtures/admin/`, and the sign-in, sign-up, password and account screens in `fixtures/auth/`; `tools/capture_admin_samples.py`, which also needs `--psql` for the reset-password form). The preview pretends everybody is a signed-in read-only viewer (`fixtures/admin/api-me.json`), so the header chip shows. No PHP, no database, no secrets; the device endpoint,
 `/admin` writes and all source directories answer 404/403. The person doing the rework (or their Claude) reads
 `https://rift-css.dannyps.net/_edit/` (Markdown briefing, also `/llms.txt`) and replaces the stylesheet with
 `PUT /_edit/css` + `Authorization: Bearer <token>` (token: `/etc/rift-data-load/css-token`). Every save is a git commit on

@@ -1,15 +1,17 @@
 <?php
 
-// Admin area, served under /admin/... (Apache rewrites everything there to this script).
-// Pages: reunioes (weekly meetings), dias-especiais, correcoes (fix counts), utilizadores (only for
-// users who can manage users), palavra-passe (own password), registo (audit log). Accounts with the
-// 'reporter' role only reach palavra-passe and the report API.
+// Admin area, served under /admin/... (Apache rewrites everything there to this script). Only accounts with the
+// 'admin' role use it (everybody else has /conta and the report API). Pages: reunioes (weekly meetings),
+// dias-especiais, pessoas, correcoes (fix counts), contadores, estatisticas, utilizadores (only for users who can
+// manage users: sign-up requests, accounts, access code), registo (audit log). Sign in/out and the own-account page
+// are in account.php.
 
 require(__DIR__ . "/sql/utils.php");
 require(__DIR__ . "/src/auth.php");
 require(__DIR__ . "/src/services.php");
 require(__DIR__ . "/src/stats_pages.php");
 require(__DIR__ . "/src/admin_ui.php");
+require(__DIR__ . "/src/mail.php");
 
 $con = db_connect();
 
@@ -18,13 +20,15 @@ $route = str_starts_with($path, '/admin/') ? substr($path, 6) : '/';
 $isPost = $_SERVER['REQUEST_METHOD'] === 'POST';
 
 // ---------------------------------------------------------------- JSON API
-// Used by the statistics page and by the report dialog on the public pages (same origin; the session cookie is
-// limited to /admin, which is why these live here). Anonymous callers only learn that they are not logged in.
+// Used by the statistics page and by the report dialog on /reunioes (same origin; the session cookie covers the whole
+// site). Nothing here answers without an account: anonymous callers get 401. Reading a saved report is open to every
+// account (and to the counter's network); saving needs the admin or reporter role.
 
 if (str_starts_with($route, '/api/')) {
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store');
     $apiUser = current_user($con);
+    $readUser = $apiUser ?? device_user($con);
     $out = function ($data, int $status = 200): never {
         http_response_code($status);
         echo json_encode($data, JSON_UNESCAPED_UNICODE);
@@ -32,28 +36,23 @@ if (str_starts_with($route, '/api/')) {
     };
 
     if ($route === '/api/me') {
-        $out($apiUser ? ['loggedIn' => true, 'user' => $apiUser['username'], 'role' => $apiUser['role'], 'csrf' => csrf_token()] : ['loggedIn' => false]);
-    }
-    // A saved meeting report is readable by everybody (it is what the public report dialog pre-fills); saving needs a login.
-    if ($route === '/api/report' && !$isPost && !$apiUser) {
-        $day = (string)($_GET['day'] ?? '');
-        $time = (string)($_GET['time'] ?? '');
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $day) || !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $time)) {
-            $out(['error' => 'bad request'], 400);
+        if (!$readUser) {
+            $out(['loggedIn' => false], 401);
         }
-        $report = report_get($con, $day, $time);
-        if ($report) {
-            unset($report['savedBy'], $report['savedAt']);
-        }
-        $out(['report' => $report, 'suggest' => null]);
+        $out(['loggedIn' => true, 'user' => $readUser['username'], 'name' => $readUser['name'] ?: $readUser['username'], 'role' => $readUser['role'],
+            'canReport' => can_report($readUser), 'display' => !empty($readUser['display']),
+            'csrf' => $apiUser ? csrf_token() : null]);      // the counter's network has no session and nothing to post
     }
-    if (!$apiUser) {
+    if (!$readUser) {
         $out(['error' => 'login'], 401);
     }
     $nowApi = new DateTimeImmutable('now', utc());
 
     if ($route === '/api/report') {
         if ($isPost) {
+            if (!$apiUser || !can_report($apiUser)) {
+                $out(['error' => 'forbidden'], 403);
+            }
             if (!csrf_ok()) {
                 $out(['error' => 'csrf'], 400);
             }
@@ -69,11 +68,18 @@ if (str_starts_with($route, '/api/')) {
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $day) || !preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $time)) {
             $out(['error' => 'bad request'], 400);
         }
-        $out(['report' => report_get($con, $day, $time), 'suggest' => report_suggestions($con, $day, $time)]);
+        $report = report_get($con, $day, $time);
+        if (!$apiUser || !can_report($apiUser)) {         // a reader sees the numbers, not who saved them nor the suggestions
+            if ($report) {
+                unset($report['savedBy'], $report['savedAt']);
+            }
+            $out(['report' => $report, 'suggest' => null]);
+        }
+        $out(['report' => $report, 'suggest' => report_suggestions($con, $day, $time)]);
     }
 
     if ($route === '/api/stats') {
-        if (!is_admin($apiUser)) {
+        if (!$apiUser || !is_admin($apiUser)) {
             $out(['error' => 'forbidden'], 403);
         }
         $part = (string)($_GET['part'] ?? 'week');
@@ -101,39 +107,15 @@ if (str_starts_with($route, '/api/')) {
     $out(['error' => 'not found'], 404);
 }
 
-// ---------------------------------------------------------------- login / logout
+// ---------------------------------------------------------------- sign in / out live in account.php (/entrar, /sair)
 
-if ($route === '/entrar') {
-    if ($already = current_user($con)) {
-        redirect(home_for($already));
-    }
-    $error = null;
-    if ($isPost) {
-        if (!csrf_ok()) {
-            $error = 'Sessão expirada. Tente novamente.';
-        } else {
-            $error = attempt_login($con, (string)($_POST['username'] ?? ''), (string)($_POST['password'] ?? ''));
-            if ($error === null) {
-                $name = strtolower(trim($_POST['username']));
-                audit($con, $name, 'login');
-                $role = pg_fetch_result(pg_query_params($con, 'SELECT role FROM admin_users WHERE username = $1', [$name]), 0, 0);
-                redirect(home_for(['role' => $role]));
-            }
-        }
-    }
-    page('Entrar', ($error ? '<div class="flash error" role="alert">' . h($error) . '</div>' : '') . '
-        <form method="post" class="card narrow">' . csrf_field() . '
-          <label for="username">Utilizador</label>
-          <input type="text" id="username" name="username" value="' . h($_POST['username'] ?? '') . '" autocomplete="username" autofocus required>
-          <label for="password">Palavra-passe</label>
-          <input type="password" id="password" name="password" autocomplete="current-password" required>
-          <p><button class="primary">Entrar</button></p>
-        </form>', null);
+if ($route === '/entrar' || $route === '/sair') {
+    redirect($route);
 }
 
 $user = current_user($con);
 if (!$user) {
-    redirect('/admin/entrar');
+    redirect(login_url($_SERVER['REQUEST_URI'] ?? '/admin'));
 }
 
 if ($isPost && !csrf_ok()) {
@@ -141,19 +123,13 @@ if ($isPost && !csrf_ok()) {
     page('Pedido inválido', '<p>A sessão expirou ou o pedido não é válido. <a href="' . h($path) . '">Voltar</a></p>', $user);
 }
 
-if ($route === '/sair' && $isPost) {
-    audit($con, $user['username'], 'logout');
-    logout();
-    redirect('/admin/entrar');
-}
-
-// A reporter only saves meeting reports (through the API above) and changes its own password.
-if (!is_admin($user) && $route !== '/palavra-passe') {
-    if ($route === '/' || $route === '') {
-        redirect('/reunioes');
+// Only admins use the admin area. Everybody else reads the site and manages their own account at /conta.
+if (!is_admin($user)) {
+    if ($route === '/' || $route === '' || $route === '/palavra-passe') {
+        redirect($route === '/palavra-passe' ? '/conta' : '/reunioes');
     }
     http_response_code(403);
-    page('Sem permissão', '<p>Esta conta só pode guardar relatórios das reuniões (no botão de cada reunião em <a href="/reunioes">/reunioes</a>) e alterar a própria palavra-passe.</p>', $user);
+    page('Sem permissão', '<p>Esta área é só para administradores. <a href="/reunioes">Voltar ao site</a> · <a href="/conta">A minha conta</a></p>', $user, 'conta');
 }
 
 // ---------------------------------------------------------------- helpers
@@ -642,28 +618,98 @@ if ($route === '/utilizadores') {
                 flash('error', 'As palavras-passe não coincidem.');
             } elseif (rows($con, 'SELECT 1 FROM admin_users WHERE username = $1', [$username])) {
                 flash('error', 'Esse nome de utilizador já existe.');
+            } elseif (trim((string)($_POST['name'] ?? '')) !== '' && ($p = name_problem(trim($_POST['name'])))) {
+                flash('error', $p);
+            } elseif (trim((string)($_POST['email'] ?? '')) !== '' && ($p = email_problem(trim($_POST['email'])))) {
+                flash('error', $p);
+            } elseif (trim((string)($_POST['email'] ?? '')) !== '' && rows($con, 'SELECT 1 FROM admin_users WHERE lower(email) = lower($1)', [trim($_POST['email'])])) {
+                flash('error', 'Esse email já está associado a outra conta.');
             } else {
-                $role = ($_POST['role'] ?? 'admin') === 'reporter' ? 'reporter' : 'admin';
+                $role = array_key_exists($_POST['role'] ?? '', ROLES) ? $_POST['role'] : 'viewer';
                 $manage = $role === 'admin' && isset($_POST['can_manage_users']);
-                pg_query_params($con, 'INSERT INTO admin_users (username, password_hash, role, can_manage_users) VALUES ($1, $2, $3, $4)', [$username, hash_password($pw), $role, $manage ? 't' : 'f']);
+                $newName = trim((string)($_POST['name'] ?? ''));
+                $newEmail = strtolower(trim((string)($_POST['email'] ?? '')));
+                pg_query_params($con, 'INSERT INTO admin_users (username, password_hash, role, can_manage_users, name, email, approved_by, approved_at) VALUES ($1, $2, $3, $4, $5, $6, $7, now())',
+                    [$username, hash_password($pw), $role, $manage ? 't' : 'f', $newName ?: null, $newEmail ?: null, $user['username']]);
                 audit($con, $user['username'], 'utilizador.criar', $username . ' (' . ROLES[$role] . ')' . ($manage ? ' (pode gerir utilizadores)' : ''));
                 flash('ok', "Utilizador $username criado.");
             }
             back();
         }
 
-        $target = pg_fetch_assoc(pg_query_params($con, 'SELECT id, username, role, can_manage_users FROM admin_users WHERE id = $1', [(int)($_POST['id'] ?? 0)]));
+        if ($act === 'set_code') {
+            $new = trim((string)($_POST['code'] ?? ''));
+            if ($new === '') {
+                $new = substr(bin2hex(random_bytes(6)), 0, 8);       // 'Gerar novo'
+            }
+            if (!preg_match('/^[A-Za-z0-9-]{6,32}$/', $new)) {
+                flash('error', 'O código tem de ter 6 a 32 caracteres (letras, números ou hífen).');
+            } else {
+                setting_set($con, 'signup_code', $new, $user['username']);
+                audit($con, $user['username'], 'conta.codigo-alterado');
+                flash('ok', 'Código de acesso alterado. Quem o tinha deixa de conseguir criar conta.');
+            }
+            back();
+        }
+        if ($act === 'set_autologin') {
+            $on = ($_POST['value'] ?? '') === 'on';
+            setting_set($con, 'display_autologin', $on ? 'on' : 'off', $user['username']);
+            audit($con, $user['username'], 'conta.ecra-automatico', $on ? 'ligado' : 'desligado');
+            flash('ok', $on ? 'Entrada automática da rede do contador ligada.' : 'Entrada automática da rede do contador desligada.');
+            back();
+        }
+
+        $target = pg_fetch_assoc(pg_query_params($con, 'SELECT id, username, role, can_manage_users, status, kind, name, email FROM admin_users WHERE id = $1', [(int)($_POST['id'] ?? 0)]));
         if (!$target) {
             flash('error', 'Utilizador não encontrado.');
             back();
         }
+        if ($target['kind'] !== 'person') {
+            flash('error', 'Esta conta é interna (entrada automática da rede do contador) e não se edita aqui.');
+            back();
+        }
         $targetManages = $target['can_manage_users'] === 't';
 
-        if ($act === 'set_role') {
-            $role = ($_POST['role'] ?? '') === 'reporter' ? 'reporter' : 'admin';
+        if ($act === 'approve' && $target['status'] === 'pending') {
+            $role = array_key_exists($_POST['role'] ?? '', ROLES) ? $_POST['role'] : 'viewer';
+            pg_query_params($con, "UPDATE admin_users SET status = 'active', role = $1, approved_by = $2, approved_at = now() WHERE id = $3", [$role, $user['username'], $target['id']]);
+            audit($con, $user['username'], 'conta.aprovar', $target['username'] . ': ' . ROLES[$role]);
+            if ((string)$target['email'] !== '') {
+                send_mail($target['email'], 'RIFT: a sua conta foi aprovada',
+                    'Olá ' . ($target['name'] ?: $target['username']) . ",\n\nA sua conta RIFT (utilizador: {$target['username']}) foi aprovada. Já pode entrar em " . SITE_URL . "/entrar\n");
+            }
+            flash('ok', 'Conta de ' . $target['username'] . ' aprovada (' . ROLES[$role] . ').');
+        } elseif ($act === 'reject' && $target['status'] === 'pending') {
+            pg_query_params($con, 'DELETE FROM admin_users WHERE id = $1', [$target['id']]);
+            audit($con, $user['username'], 'conta.rejeitar', $target['username']);
+            flash('ok', 'Pedido de ' . $target['username'] . ' rejeitado e removido.');
+        } elseif (($act === 'disable' || $act === 'enable') && $target['status'] !== 'pending') {
+            if ((int)$target['id'] === (int)$user['id']) {
+                flash('error', 'Não pode bloquear a sua própria conta.');
+            } elseif ($act === 'disable' && $targetManages && $managers <= 1) {
+                flash('error', 'Tem de existir pelo menos um utilizador que possa gerir utilizadores.');
+            } else {
+                pg_query_params($con, 'UPDATE admin_users SET status = $1 WHERE id = $2', [$act === 'disable' ? 'disabled' : 'active', $target['id']]);
+                audit($con, $user['username'], $act === 'disable' ? 'conta.desativar' : 'conta.ativar', $target['username']);
+                flash('ok', 'Conta de ' . $target['username'] . ($act === 'disable' ? ' bloqueada: perde o acesso de imediato.' : ' reativada.'));
+            }
+        } elseif ($act === 'set_profile') {
+            $newName = trim((string)($_POST['name'] ?? ''));
+            $newEmail = strtolower(trim((string)($_POST['email'] ?? '')));
+            if ($p = ($newName !== '' ? name_problem($newName) : null) ?? ($newEmail !== '' ? email_problem($newEmail) : null)) {
+                flash('error', $p);
+            } elseif ($newEmail !== '' && rows($con, 'SELECT 1 FROM admin_users WHERE lower(email) = $1 AND id <> $2', [$newEmail, $target['id']])) {
+                flash('error', 'Esse email já está associado a outra conta.');
+            } else {
+                pg_query_params($con, 'UPDATE admin_users SET name = $1, email = $2 WHERE id = $3', [$newName ?: null, $newEmail ?: null, $target['id']]);
+                audit($con, $user['username'], 'utilizador.dados', $target['username']);
+                flash('ok', 'Dados de ' . $target['username'] . ' guardados.');
+            }
+        } elseif ($act === 'set_role') {
+            $role = array_key_exists($_POST['role'] ?? '', ROLES) ? $_POST['role'] : 'viewer';
             if ((int)$target['id'] === (int)$user['id']) {
                 flash('error', 'Não pode alterar o seu próprio perfil.');
-            } elseif ($role === 'reporter' && $targetManages) {
+            } elseif ($role !== 'admin' && $targetManages) {
                 flash('error', 'Retire primeiro a permissão de gerir utilizadores a ' . $target['username'] . '.');
             } elseif ($role !== $target['role']) {
                 pg_query_params($con, 'UPDATE admin_users SET role = $1 WHERE id = $2', [$role, $target['id']]);
@@ -688,7 +734,7 @@ if ($route === '/utilizadores') {
             } elseif ($pw !== (string)($_POST['password2'] ?? '')) {
                 flash('error', 'As palavras-passe não coincidem.');
             } else {
-                pg_query_params($con, 'UPDATE admin_users SET password_hash = $1 WHERE id = $2', [hash_password($pw), $target['id']]);
+                pg_query_params($con, 'UPDATE admin_users SET password_hash = $1, password_changed_at = now() WHERE id = $2', [hash_password($pw), $target['id']]);
                 audit($con, $user['username'], 'utilizador.palavra-passe', $target['username']);
                 flash('ok', 'Palavra-passe de ' . $target['username'] . ' alterada.');
             }
@@ -709,17 +755,56 @@ if ($route === '/utilizadores') {
     $roleOptions = fn(string $sel) => implode('', array_map(fn($k, $v) => '<option value="' . $k . '"' . ($k === $sel ? ' selected' : '') . '>' . h($v) . '</option>', array_keys(ROLES), ROLES));
     $hidden = fn(array $u, string $action) => csrf_field() . '<input type="hidden" name="id" value="' . h($u['id']) . '"><input type="hidden" name="action" value="' . $action . '">';
 
-    $body = '<dl class="roles"><div><dt>Administrador</dt><dd>Reuniões, dias especiais, pessoas, correções, contadores e estatísticas.</dd></div>'
-        . '<div><dt>Só relatórios</dt><dd>Guarda os relatórios das reuniões (no botão de cada reunião em /reunioes) e altera a própria palavra-passe.</dd></div></dl>'
+    $body = '';
+
+    // ---- sign-ups waiting for a decision
+    $pending = rows($con, "SELECT * FROM admin_users WHERE status = 'pending' AND kind = 'person' ORDER BY created_at");
+    if ($pending) {
+        $body .= '<h3 id="pendentes">Pedidos de conta por aprovar <span class="count-badge">' . count($pending) . '</span></h3>'
+            . '<p class="hint">Estas pessoas criaram uma conta com o código de acesso. Enquanto não aprovar, não conseguem entrar nem ver nada.</p><div class="users pending-list">';
+        foreach ($pending as $u) {
+            $body .= '<article class="user card"><div class="user-head"><div class="user-id"><strong>' . h($u['name'] ?: $u['username']) . '</strong>'
+                . '<div class="user-seen">' . h($u['email'] ?? '') . ' · utilizador ' . h($u['username']) . ' · pedido em ' . h(fmt_local($u['created_at'])) . '</div></div>'
+                . '<div class="pills"><span class="pill pending">Por aprovar</span></div></div>'
+                . '<div class="user-forms"><form method="post" class="field-form">' . $hidden($u, 'approve')
+                . '<label for="ap' . $u['id'] . '">Aprovar com o perfil</label><div class="field-row"><select id="ap' . $u['id'] . '" name="role">' . $roleOptions('viewer') . '</select><button class="primary">Aprovar</button></div></form>'
+                . '<form method="post" class="field-form remove" data-confirm="Rejeitar e remover o pedido de ' . h($u['username']) . '?">' . $hidden($u, 'reject')
+                . '<button class="danger">Rejeitar</button></form></div></article>';
+        }
+        $body .= '</div>';
+    }
+
+    // ---- how people sign up, and the counter's own network
+    $code = (string)setting_get($con, 'signup_code');
+    $auto = setting_get($con, 'display_autologin') === 'on';
+    $seen = pg_fetch_assoc(pg_query($con, 'SELECT ip, seen_at, extract(epoch FROM now() - seen_at) AS age FROM device_seen WHERE id = 1'));
+    $seenText = $seen ? h($seen['ip']) . ' · última vez às ' . h(fmt_local($seen['seen_at'])) . ((float)$seen['age'] > DEVICE_IP_MAX_AGE ? ' (há demasiado tempo: a entrada automática está parada)' : '') : 'o contador ainda não enviou dados';
+    $body .= '<h3>Criar conta e entrada automática</h3><div class="users"><article class="user card"><div class="user-head"><div class="user-id"><strong>Código de acesso</strong>'
+        . '<div class="user-seen">Quem quiser criar conta tem de o indicar. Dê-o às pessoas que convida.</div></div><div class="pills"><span class="pill code"><code>' . h($code) . '</code></span></div></div>'
+        . '<details class="user-edit"><summary>Alterar</summary><div class="user-forms"><form method="post" class="field-form">' . csrf_field() . '<input type="hidden" name="action" value="set_code">'
+        . '<label for="code">Novo código (deixe vazio para gerar um)</label><div class="field-row"><input type="text" id="code" name="code" maxlength="32" autocomplete="off" placeholder="gerar automaticamente"><button>Alterar</button></div></form></div></details></article>'
+        . '<article class="user card"><div class="user-head"><div class="user-id"><strong>Rede do contador</strong>'
+        . '<div class="user-seen">Quem abre o site a partir da mesma rede (o endereço de onde o contador envia dados) entra sozinho, só para consulta. ' . $seenText . '</div></div>'
+        . '<div class="pills"><span class="pill ' . ($auto ? 'manage' : '') . '">' . ($auto ? 'Ligada' : 'Desligada') . '</span></div></div>'
+        . '<div class="user-forms"><form method="post" class="field-form">' . csrf_field() . '<input type="hidden" name="action" value="set_autologin"><input type="hidden" name="value" value="' . ($auto ? 'off' : 'on') . '">'
+        . '<p class="hint">Atenção: todos os dispositivos ligados à mesma rede (por exemplo visitantes no wifi) também entram, só com permissão de ver.</p>'
+        . '<button' . ($auto ? ' class="danger"' : '') . '>' . ($auto ? 'Desligar' : 'Ligar') . '</button></form></div></article></div>';
+
+    $body .= '<dl class="roles"><div><dt>Administrador</dt><dd>Reuniões, dias especiais, pessoas, correções, contadores e estatísticas.</dd></div>'
+        . '<div><dt>Relatórios</dt><dd>Vê o site e guarda os relatórios das reuniões (no botão de cada reunião em /reunioes).</dd></div>'
+        . '<div><dt>Só consulta</dt><dd>Só vê as páginas de gráficos e de reuniões.</dd></div></dl>'
         . '<h3>Utilizadores</h3><div class="users">';
-    foreach (rows($con, 'SELECT * FROM admin_users ORDER BY username') as $u) {
+    foreach (rows($con, "SELECT * FROM admin_users WHERE kind = 'person' AND status <> 'pending' ORDER BY username") as $u) {
         $isSelf = (int)$u['id'] === (int)$user['id'];
         $isAdmin = $u['role'] === 'admin';
         $manages = $u['can_manage_users'] === 't';
+        $locked = $u['status'] !== 'active';
         $name = h($u['username']);
         $body .= '<article class="user card"><div class="user-head"><div class="user-id"><strong>' . $name . '</strong>' . ($isSelf ? ' <span class="tag">você</span>' : '')
+            . ((string)$u['name'] !== '' || (string)$u['email'] !== '' ? '<div class="user-seen">' . h(trim(($u['name'] ?? '') . ' · ' . ($u['email'] ?? ''), ' ·')) . '</div>' : '')
             . '<div class="user-seen">Último acesso: ' . h(fmt_local($u['last_login'])) . '</div></div>'
-            . '<div class="pills"><span class="pill ' . ($isAdmin ? 'admin' : 'reporter') . '">' . h(ROLES[$u['role']]) . '</span>'
+            . '<div class="pills"><span class="pill ' . ($isAdmin ? 'admin' : 'reporter') . '">' . h(ROLES[$u['role']] ?? $u['role']) . '</span>'
+            . ($locked ? '<span class="pill disabled">Bloqueada</span>' : '')
             . ($manages ? '<span class="pill manage">Gere utilizadores</span>' : '') . '</div></div>'
             . '<details class="user-edit"><summary>Editar</summary><div class="user-forms">';
         if (!$isSelf) {
@@ -730,10 +815,15 @@ if ($route === '/utilizadores') {
             $body .= '<form method="post" class="field-form">' . $hidden($u, 'set_manage') . '<input type="hidden" name="value" value="' . ($manages ? '0' : '1') . '">'
                 . '<label>Gerir utilizadores</label><div class="field-row"><span class="state">' . ($manages ? 'Sim' : 'Não') . '</span><button>' . ($manages ? 'Retirar' : 'Conceder') . '</button></div></form>';
         }
+        $body .= '<form method="post" class="field-form">' . $hidden($u, 'set_profile')
+            . '<label for="nm' . $u['id'] . '">Nome</label><input type="text" id="nm' . $u['id'] . '" name="name" value="' . h($u['name'] ?? '') . '" maxlength="80" autocomplete="off">'
+            . '<label for="em' . $u['id'] . '">Email</label><div class="field-row"><input type="email" id="em' . $u['id'] . '" name="email" value="' . h($u['email'] ?? '') . '" maxlength="120" autocomplete="off"><button>Guardar</button></div></form>';
         $body .= '<form method="post" class="field-form pw">' . $hidden($u, 'reset_password')
             . '<label for="pw' . $u['id'] . '">Nova palavra-passe</label><div class="field-row"><input type="password" id="pw' . $u['id'] . '" name="password" placeholder="Nova" autocomplete="new-password" required>'
             . '<input type="password" name="password2" placeholder="Repetir" autocomplete="new-password" aria-label="Repetir a nova palavra-passe" required><button>Alterar</button></div></form>';
         if (!$isSelf) {
+            $body .= '<form method="post" class="field-form">' . $hidden($u, $locked ? 'enable' : 'disable')
+                . '<label>Acesso</label><div class="field-row"><span class="state">' . ($locked ? 'Bloqueado' : 'Ativo') . '</span><button' . ($locked ? '' : ' class="danger"') . '>' . ($locked ? 'Reativar' : 'Bloquear') . '</button></div></form>';
             $body .= '<form method="post" class="field-form remove" data-confirm="Remover o utilizador ' . $name . '?">' . csrf_field() . '<input type="hidden" name="id" value="' . h($u['id']) . '">'
                 . '<button name="action" value="delete" class="danger">Remover utilizador</button></form>';
         }
@@ -742,41 +832,22 @@ if ($route === '/utilizadores') {
     $body .= '</div><h3>Adicionar utilizador</h3><form method="post" class="card add-user" id="adduser">' . csrf_field() . '<input type="hidden" name="action" value="add">
         <div class="add-grid">
           <div><label for="u">Utilizador</label><input type="text" id="u" name="username" maxlength="32" autocomplete="off" required></div>
-          <div><label for="r">Perfil</label><select id="r" name="role">' . $roleOptions('reporter') . '</select></div>
+          <div><label for="r">Perfil</label><select id="r" name="role">' . $roleOptions('viewer') . '</select></div>
+          <div><label for="nm">Nome (opcional)</label><input type="text" id="nm" name="name" maxlength="80" autocomplete="off"></div>
+          <div><label for="em">Email (opcional)</label><input type="email" id="em" name="email" maxlength="120" autocomplete="off"></div>
           <div><label for="p1">Palavra-passe</label><input type="password" id="p1" name="password" autocomplete="new-password" required></div>
           <div><label for="p2">Repetir palavra-passe</label><input type="password" id="p2" name="password2" autocomplete="new-password" required></div>
         </div>
         <label class="check" id="managewrap"><input type="checkbox" name="can_manage_users" value="1"> Pode gerir utilizadores</label>
-        <p class="hint">Nome com 3 a 32 caracteres (letras minúsculas, números, ponto, hífen ou sublinhado); palavra-passe com pelo menos ' . MIN_PASSWORD_LENGTH . ' caracteres.</p>
+        <p class="hint">Nome com 3 a 32 caracteres (letras minúsculas, números, ponto, hífen ou sublinhado); palavra-passe com pelo menos ' . MIN_PASSWORD_LENGTH . ' caracteres. Sem email, a pessoa não consegue repor a palavra-passe por email.</p>
         <p><button class="primary">Criar utilizador</button></p></form>';
     page('Utilizadores', $body, $user, 'utilizadores');
 }
 
-// ---------------------------------------------------------------- own password
+// ---------------------------------------------------------------- own password (moved to /conta)
 
 if ($route === '/palavra-passe') {
-    if ($isPost) {
-        $row = pg_fetch_assoc(pg_query_params($con, 'SELECT password_hash FROM admin_users WHERE id = $1', [$user['id']]));
-        $new = (string)($_POST['password'] ?? '');
-        if (!verify_password($row['password_hash'], (string)($_POST['current'] ?? ''))) {
-            flash('error', 'A palavra-passe atual está incorreta.');
-        } elseif ($problem = password_problem($new)) {
-            flash('error', $problem);
-        } elseif ($new !== (string)($_POST['password2'] ?? '')) {
-            flash('error', 'As palavras-passe novas não coincidem.');
-        } else {
-            pg_query_params($con, 'UPDATE admin_users SET password_hash = $1 WHERE id = $2', [hash_password($new), $user['id']]);
-            audit($con, $user['username'], 'palavra-passe.alterar');
-            session_regenerate_id(true);
-            flash('ok', 'Palavra-passe alterada.');
-        }
-        back();
-    }
-    page('Palavra-passe', '<form method="post" class="card narrow">' . csrf_field() . '
-        <label for="c">Palavra-passe atual</label><input type="password" id="c" name="current" autocomplete="current-password" required>
-        <label for="n1">Nova palavra-passe</label><input type="password" id="n1" name="password" autocomplete="new-password" required>
-        <label for="n2">Repetir a nova palavra-passe</label><input type="password" id="n2" name="password2" autocomplete="new-password" required>
-        <p class="hint">Pelo menos ' . MIN_PASSWORD_LENGTH . ' caracteres.</p><p><button class="primary">Alterar</button></p></form>', $user, 'palavra-passe');
+    redirect('/conta');
 }
 
 // ---------------------------------------------------------------- audit log

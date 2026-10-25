@@ -4,6 +4,7 @@
 // difference to the previous reading of the same register (a drop means the counter was reset).
 
 require(__DIR__ . "/sql/utils.php");
+require(__DIR__ . "/src/auth.php");
 require(__DIR__ . "/src/balance.php");
 
 const RANGES = [
@@ -26,6 +27,13 @@ header('Content-Type: application/json');
 header('Cache-Control: no-store');
 
 $con = db_connect();
+$viewer = viewer_user($con);
+release_session();
+if (!$viewer) {        // the whole site needs an account (or the counter's own network)
+    http_response_code(401);
+    echo json_encode(['error' => 'login']);
+    exit;
+}
 
 // Buckets are aligned in UTC. The balance of a bucket is its last reading's.
 $since = new DateTimeImmutable("-$window");

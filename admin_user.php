@@ -7,10 +7,11 @@ if (PHP_SAPI !== 'cli') {
 
 // Admin accounts from the command line (the admin pages manage them once you can log in).
 //   php admin_user.php list
-//   php admin_user.php create USER [--manage | --reporter]       (asks for the password)
-//   php admin_user.php import-htpasswd USER [--manage | --reporter] [FILE]   (reuses an Apache htpasswd entry;
+//   php admin_user.php create USER [--manage | --reporter | --viewer]       (asks for the password)
+//   php admin_user.php import-htpasswd USER [--manage | --reporter | --viewer] [FILE]   (reuses an Apache htpasswd entry;
 //                                                     the hash is upgraded to argon2id at the first login)
-// --reporter makes a 'reporter' account (only saves meeting reports); the default is an admin.
+// --reporter makes a 'reporter' account (reads the site and saves meeting reports), --viewer a read-only one; the default is an admin.
+// Accounts made here are active at once (people who sign up themselves wait for approval).
 
 require(__DIR__ . "/sql/utils.php");
 require(__DIR__ . "/src/auth.php");
@@ -24,26 +25,30 @@ function fail(string $msg): never
 $args = array_slice($argv, 1);
 $manage = in_array('--manage', $args, true);
 $reporter = in_array('--reporter', $args, true);
-$args = array_values(array_filter($args, fn($a) => $a !== '--manage' && $a !== '--reporter'));
-if ($manage && $reporter) {
-    fail('a reporter cannot manage users');
+$viewer = in_array('--viewer', $args, true);
+$args = array_values(array_filter($args, fn($a) => !in_array($a, ['--manage', '--reporter', '--viewer'], true)));
+if ($manage && ($reporter || $viewer)) {
+    fail('only an admin can manage users');
 }
-$role = $reporter ? 'reporter' : 'admin';
+if ($reporter && $viewer) {
+    fail('choose --reporter or --viewer, not both');
+}
+$role = $viewer ? 'viewer' : ($reporter ? 'reporter' : 'admin');
 $cmd = array_shift($args);
 $con = db_connect();
 
 switch ($cmd) {
     case 'list':
-        $res = pg_query($con, "SELECT username, role, can_manage_users, to_char(last_login, 'YYYY-MM-DD HH24:MI') AS last FROM admin_users ORDER BY username");
+        $res = pg_query($con, "SELECT username, role || CASE WHEN status <> 'active' THEN ' (' || status || ')' ELSE '' END AS role, can_manage_users, to_char(last_login, 'YYYY-MM-DD HH24:MI') AS last FROM admin_users WHERE kind = 'person' ORDER BY username");
         foreach (pg_fetch_all($res) ?: [] as $r) {
-            echo str_pad($r['username'], 20), str_pad($r['role'], 10), $r['can_manage_users'] === 't' ? 'manages users  ' : '               ', $r['last'] ?? 'never logged in', "\n";
+            echo str_pad($r['username'], 20), str_pad($r['role'], 18), $r['can_manage_users'] === 't' ? 'manages users  ' : '               ', $r['last'] ?? 'never logged in', "\n";
         }
         break;
     case 'create':
     case 'import-htpasswd':
         $username = $args[0] ?? '';
         if (!valid_username($username)) {
-            fail('usage: admin_user.php ' . $cmd . ' USER [--manage | --reporter]');
+            fail('usage: admin_user.php ' . $cmd . ' USER [--manage | --reporter | --viewer]');
         }
         if ($cmd === 'create') {
             fwrite(STDERR, "Password for $username: ");
@@ -76,5 +81,5 @@ switch ($cmd) {
         echo "created $username ($role)\n";
         break;
     default:
-        fail('usage: admin_user.php list | create USER [--manage | --reporter] | import-htpasswd USER [--manage | --reporter] [FILE]');
+        fail('usage: admin_user.php list | create USER [--manage | --reporter | --viewer] | import-htpasswd USER [--manage | --reporter | --viewer] [FILE]');
 }

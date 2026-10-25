@@ -291,9 +291,12 @@ function buildReport(card, values) {
   return lines.join('\n');
 }
 
-// Is a logged-in admin user looking at this page? Then the report is pre-filled from, and saved to, the statistics.
+// Who is looking? Admins and reporters get the report pre-filled from, and saved to, the statistics; viewers only read.
+// The whole site needs an account: when the session has ended any data request answers 401 and we go to the sign-in page,
+// which brings us back here (card link included).
+const toLogin = () => { location.href = '/entrar?next=' + encodeURIComponent(location.pathname + location.search + location.hash); };
 const sessionReady = fetch('/admin/api/me', { credentials: 'same-origin', cache: 'no-store' })
-  .then(r => r.ok ? r.json() : { loggedIn: false }).catch(() => ({ loggedIn: false }));
+  .then(r => { if (r.status === 401) { toLogin(); return { loggedIn: false }; } return r.ok ? r.json() : { loggedIn: false }; }).catch(() => ({ loggedIn: false }));
 let session = { loggedIn: false };
 
 const dlg = $('report');
@@ -357,8 +360,9 @@ async function openReport(key) {
     $('nameFields').innerHTML = REPORT_NAMES.map(([id, label, role]) =>
       fieldHtml(id, label, saved ? saved[id] : ((card.people && card.people[role] && card.people[role].value) || ''), 'maxlength="100"')).join('');
     $('saveNote').textContent = '';
-    $('reportIntro').textContent = session.loggedIn
-      ? `Sessão iniciada como ${session.user}: ao gerar o texto, o relatório fica guardado nas estatísticas${saved ? ' (já havia um guardado: foi carregado)' : ''}.`
+    $('reportIntro').textContent = session.loggedIn && session.canReport
+      ? `Sessão iniciada como ${session.name || session.user}: ao gerar o texto, o relatório fica guardado nas estatísticas${saved ? ' (já havia um guardado: foi carregado)' : ''}.`
+      : session.loggedIn ? `A sua conta só permite consulta: pode gerar o texto${saved ? ' (o relatório já guardado foi carregado)' : ''}, mas nada fica guardado.`
       : (saved ? 'Este relatório já foi preenchido e foi carregado. Pode gerar o texto; sem sessão iniciada as alterações não ficam guardadas.'
         : 'Preencha todos os campos e carregue em «Gerar texto». Sem sessão iniciada nada fica guardado: ao fechar, os valores perdem-se.');
   }
@@ -452,7 +456,7 @@ $('reportForm').addEventListener('submit', e => {
   err.hidden = true;
   $('reportText').value = buildReport(current.card, values);
   $('reportOut').hidden = false;
-  if (session.loggedIn) saveReport(values);
+  if (session.loggedIn && session.canReport) saveReport(values);
   $('copyBtn').textContent = 'Copiar';
   $('copyNote').textContent = '';
   fitText();
@@ -493,6 +497,7 @@ $('copyBtn').addEventListener('click', async () => {
 async function load() {
   try {
     const r = await fetch('/api/services' + (week ? `?week=${week}` : ''), { cache: 'no-store' });
+    if (r.status === 401) return toLogin();
     if (!r.ok) throw new Error(r.status);
     data = await r.json();
     render();
@@ -512,5 +517,6 @@ $('next').addEventListener('click', () => data && go(data.next));
 $('current').addEventListener('click', () => go(null));
 load(); setInterval(load, 60000);
 </script>
+<script src="/assets/auth.js"></script>
 </body>
 </html>

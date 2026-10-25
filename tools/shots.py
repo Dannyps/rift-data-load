@@ -5,9 +5,10 @@
   python3 tools/shots.py shoot   --base http://127.0.0.1:8099 --state state.json --out DIR [--only SUBSTR]
   python3 tools/shots.py compare DIR_A DIR_B                                         # byte-compare two shot directories
 
-Public pages get the JSON in fixtures/ (same rewrites as the preview vhost) and a frozen browser clock, so two runs of the
-same CSS give identical PNGs. Admin pages come from the --base server (a LOCAL server on the throwaway database) with the
-logged-in session of --state. The sample admin is sample.admin / capture-pass in the throwaway database ONLY.
+The charts and meetings pages (they need an account now) are opened with the logged-in session of --state and get the JSON in
+fixtures/ (same rewrites as the preview vhost) and a frozen browser clock, so two runs of the same CSS give identical PNGs. The
+admin and account pages come from the --base server (a LOCAL server on the throwaway database) with the same session; the
+sign-in, sign-up and password pages are shot anonymously. The sample admin is sample.admin / capture-pass in the throwaway database ONLY.
 Set PLAYWRIGHT_PY to the directory holding the playwright package and CHROMIUM to the browser binary if they are not the defaults.
 """
 import argparse
@@ -36,7 +37,9 @@ PUBLIC = [  # name, path, after-load action
     ('reunioes-linked', '/reunioes#r-2026-10-18-1130', None),
     ('reunioes-report', '/reunioes', 'open-report'),
 ]
-ADMIN = ['reunioes', 'dias-especiais', 'pessoas', 'correcoes', 'contadores', 'estatisticas', 'utilizadores', 'palavra-passe', 'registo']
+ADMIN = ['reunioes', 'dias-especiais', 'pessoas', 'correcoes', 'contadores', 'estatisticas', 'utilizadores', 'registo']
+ANON = [('entrar', '/entrar'), ('registar', '/registar'), ('esqueci', '/esqueci-palavra-passe')]     # a stranger's pages
+SIGNED_IN = [('conta', '/conta')]
 
 
 def fixture_for(url):
@@ -49,8 +52,6 @@ def fixture_for(url):
     if u.path == '/api/services':
         wk = q.get('week', [None])[0]
         return f'services-{wk}.json' if wk and os.path.exists(f'{ROOT}/fixtures/services-{wk}.json') else 'services.json'
-    if u.path == '/admin/api/me':
-        return None
     return None
 
 
@@ -68,8 +69,6 @@ def public_page(ctx, base):
         name = fixture_for(r.request.url)
         if name:
             r.fulfill(path=f'{ROOT}/fixtures/{name}', content_type='application/json')
-        elif '/admin/api/me' in r.request.url:
-            r.fulfill(json={'loggedIn': False})
         else:
             r.continue_()
     pg.route('**/*', route)
@@ -93,7 +92,7 @@ def shoot(args):
         b = p.chromium.launch(executable_path=CHROMIUM, args=['--no-sandbox'])
         for vp in VIEWPORTS:
             for scheme in SCHEMES:
-                ctx = new_context(b, vp, scheme)
+                ctx = new_context(b, vp, scheme, args.state)
                 for name, path, what in PUBLIC:
                     tag = f'{name}__{vp}__{scheme}'
                     if args.only and args.only not in tag:
@@ -107,24 +106,25 @@ def shoot(args):
                     pg.screenshot(path=f'{args.out}/{tag}.png', full_page=True, animations='disabled')
                     pg.close(); n += 1
                 ctx.close()
-                # admin: anonymous login page, then the logged-in pages
+                # a stranger's pages (no session), then the signed-in admin and account pages
+                for name, path in ANON:
+                    tag = f'anon-{name}__{vp}__{scheme}'
+                    if args.only and args.only not in tag:
+                        continue
+                    c2 = new_context(b, vp, scheme); pg2 = c2.new_page(); pg2.clock.set_fixed_time(NOW)
+                    pg2.goto(args.base + path); pg2.wait_for_load_state('networkidle')
+                    pg2.screenshot(path=f'{args.out}/{tag}.png', full_page=True, animations='disabled'); c2.close(); n += 1
                 ctx = new_context(b, vp, scheme, args.state)
-                for name in ['entrar'] + ADMIN + (['reunioes-drawer'] if vp == 'phone' else []):
+                for name, path in [(x, '/admin/' + x) for x in ADMIN] + SIGNED_IN + ([('admin-drawer', '/admin/reunioes')] if vp == 'phone' else []):
                     tag = f'admin-{name}__{vp}__{scheme}'
                     if args.only and args.only not in tag:
                         continue
                     pg = ctx.new_page()
                     pg.clock.set_fixed_time(NOW)
-                    if name == 'entrar':
-                        c2 = new_context(b, vp, scheme); pg2 = c2.new_page(); pg2.clock.set_fixed_time(NOW)
-                        pg2.goto(args.base + '/admin/entrar'); pg2.wait_for_load_state('networkidle')
-                        pg2.screenshot(path=f'{args.out}/{tag}.png', full_page=True, animations='disabled'); c2.close(); pg.close(); n += 1
-                        continue
-                    drawer = name == 'reunioes-drawer'
-                    pg.goto(args.base + '/admin/' + ('reunioes' if drawer else name))
+                    pg.goto(args.base + path)
                     pg.wait_for_load_state('networkidle')
                     pg.wait_for_timeout(400)
-                    if drawer:
+                    if name == 'admin-drawer':
                         pg.click('#menutoggle'); pg.wait_for_timeout(500)
                     pg.screenshot(path=f'{args.out}/{tag}.png', full_page=True, animations='disabled')
                     pg.close(); n += 1
