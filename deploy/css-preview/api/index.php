@@ -17,10 +17,10 @@ const MAX_AUTH_FAILURES   = 10;      // per client address and 10 minutes
 
 const PREVIEW_PAGES = [
     '/' => 'Charts page (/?range=1h|6h|24h|7d|30d, add &view=balance for the balance chart)',
-    '/reunioes' => 'Meetings page, the current week: one meeting done, one running, one not started',
-    '/reunioes?week=2026-10-11' => 'Meetings page, a past week: partial data, no data, special day, event card',
-    '/reunioes?week=2026-10-04' => 'Meetings page, an empty week',
-    '/reunioes?week=2026-10-25' => 'Meetings page, a future week with a special day',
+    '/reunioes' => 'Meetings page, the current week (Monday to Sunday): meetings done, running, one whose report just opened, one later; week totals at the bottom',
+    '/reunioes?week=2026-10-05' => 'Meetings page, a past week: partial data, no data, special day, event card, a saved report',
+    '/reunioes?week=2026-09-28' => 'Meetings page, an empty week (no totals section)',
+    '/reunioes?week=2026-10-19' => 'Meetings page, a future week with a special day (no totals section: nothing to add up yet)',
     '/reunioes#r-2026-10-18-1130' => 'Meetings page with one card highlighted by its link',
     '/admin/reunioes' => 'Admin: weekly meetings (a table, cards on phones)',
     '/admin/dias-especiais' => 'Admin: special days',

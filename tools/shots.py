@@ -31,9 +31,9 @@ PUBLIC = [  # name, path, after-load action
     ('index-balance-7d', '/?range=7d&view=balance', None),
     ('index-tooltip', '/?range=6h', 'chart-hover'),
     ('reunioes', '/reunioes', None),
-    ('reunioes-past-week', '/reunioes?week=2026-10-11', None),
-    ('reunioes-empty-week', '/reunioes?week=2026-10-04', None),
-    ('reunioes-future-week', '/reunioes?week=2026-10-25', None),
+    ('reunioes-past-week', '/reunioes?week=2026-10-05', None),
+    ('reunioes-empty-week', '/reunioes?week=2026-09-28', None),
+    ('reunioes-future-week', '/reunioes?week=2026-10-19', None),
     ('reunioes-linked', '/reunioes#r-2026-10-18-1130', None),
     ('reunioes-report', '/reunioes', 'open-report'),
 ]

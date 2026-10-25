@@ -117,7 +117,7 @@ tokens; `.grid line`, `svg text`), `.tip` (hover tooltip with `.k` and `.swatch`
 `.badge` "hoje"); `.cards > .card` (`.event` for an event; `.linked` for the card the URL points at; inside: `.title` with a
 `.time`, `.count` (`.unknown` before the meeting starts), `.state` (with a pulsing `.dot` while running), `.note`, `dl.people` with
 `dt`/`dd` (`dd.tbd` = "por anunciar"), round buttons `.info-btn` (report; `:disabled` before the meeting starts) and `.link-btn`
-(copy link)); the report dialog `dialog#report` (`.dlg-head`, `.dlg-close`, `.dlg-body`, `fieldset`/`legend`, `.field` with
+(copy link)); the totals of the week below the days: `section.weektotals` (`h2` with a `.badge`, `.wt-grid` of `.wt-tile`: `.wt-total` (wide, the sum of the cards), `.wt-vol`, `.wt-vis`, `.wt-kids`, `.wt-dec`, each with `.wt-label`, `.wt-value`, `.wt-note`; `ul.wt-notes`); the report dialog `dialog#report` (`.dlg-head`, `.dlg-close`, `.dlg-body`, `fieldset`/`legend`, `.field` with
 `label`, `input`, `.hint`, `.err`, `.grid2`, `.dlg-actions`, `#reportOut`, `#reportText`, `.form-error`); `#toast`.
 
 **Accounts** (the whole site needs an account; these are the pages a stranger sees). They are admin-style pages, so they use `body.admin`

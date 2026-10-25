@@ -85,8 +85,8 @@ if (str_starts_with($route, '/api/')) {
         $part = (string)($_GET['part'] ?? 'week');
         if ($part === 'week') {
             $d = (string)($_GET['week'] ?? '');
-            $sun = week_start(preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) ? $d : $nowApi->setTimezone(local_tz())->format('Y-m-d'));
-            $out(stats_week_data($con, $nowApi, $sun));
+            $mon = week_start(preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) ? $d : $nowApi->setTimezone(local_tz())->format('Y-m-d'));
+            $out(stats_week_data($con, $nowApi, $mon));
         }
         if ($part === 'month') {
             $ym = (string)($_GET['month'] ?? $nowApi->setTimezone(local_tz())->format('Y-m'));
@@ -314,8 +314,8 @@ if ($route === '/dias-especiais') {
 if ($route === '/correcoes') {
     $now = new DateTimeImmutable('now', utc());
     $weekParam = (string)($_GET['week'] ?? $_POST['week'] ?? '');
-    $sunday = week_start(is_date($weekParam) ? $weekParam : $now->setTimezone(local_tz())->format('Y-m-d'));
-    $self = '/admin/correcoes?week=' . $sunday;
+    $monday = week_start(is_date($weekParam) ? $weekParam : $now->setTimezone(local_tz())->format('Y-m-d'));
+    $self = '/admin/correcoes?week=' . $monday;
 
     if ($isPost) {
         $act = $_POST['action'] ?? '';
@@ -361,16 +361,16 @@ if ($route === '/correcoes') {
         back($self);
     }
 
-    services_week($con, $now, $sunday); // bring the week's snapshots up to date first
-    $sv = rows($con, "SELECT *, to_char(start_time, 'HH24:MI') AS t FROM service_snapshots WHERE day BETWEEN $1::date AND $1::date + 6 ORDER BY day, start_time", [$sunday]);
-    $ev = rows($con, 'SELECT * FROM event_snapshots WHERE day BETWEEN $1::date AND $1::date + 6 AND peak IS NOT NULL ORDER BY day', [$sunday]);
-    $prev = (new DateTimeImmutable($sunday))->modify('-7 days')->format('Y-m-d');
-    $next = (new DateTimeImmutable($sunday))->modify('+7 days')->format('Y-m-d');
-    $end = (new DateTimeImmutable($sunday))->modify('+6 days');
+    services_week($con, $now, $monday); // bring the week's snapshots up to date first
+    $sv = rows($con, "SELECT *, to_char(start_time, 'HH24:MI') AS t FROM service_snapshots WHERE day BETWEEN $1::date AND $1::date + 6 ORDER BY day, start_time", [$monday]);
+    $ev = rows($con, 'SELECT * FROM event_snapshots WHERE day BETWEEN $1::date AND $1::date + 6 AND peak IS NOT NULL ORDER BY day', [$monday]);
+    $prev = (new DateTimeImmutable($monday))->modify('-7 days')->format('Y-m-d');
+    $next = (new DateTimeImmutable($monday))->modify('+7 days')->format('Y-m-d');
+    $end = (new DateTimeImmutable($monday))->modify('+6 days');
 
-    $line = function (string $kind, array $r, string $title, string $when) use ($sunday): string {
+    $line = function (string $kind, array $r, string $title, string $when) use ($monday): string {
         $f = $kind . $r['day'] . ($r['t'] ?? '');
-        $hidden = csrf_field() . '<input type="hidden" name="week" value="' . h($sunday) . '"><input type="hidden" name="kind" value="' . $kind . '"><input type="hidden" name="day" value="' . h($r['day']) . '">'
+        $hidden = csrf_field() . '<input type="hidden" name="week" value="' . h($monday) . '"><input type="hidden" name="kind" value="' . $kind . '"><input type="hidden" name="day" value="' . h($r['day']) . '">'
             . ($kind === 's' ? '<input type="hidden" name="start_time" value="' . h($r['t']) . '">' : '');
         $corrected = $r['corrected_peak'] !== null;
         $state = ($r['frozen'] === 't' ? 'terminada' : 'em curso') . (($r['partial'] ?? 'f') === 't' ? ' · dados parciais' : '');
@@ -394,7 +394,7 @@ if ($route === '/correcoes') {
 
     $body = '<p class="hint">Corrija o valor mostrado de uma reunião ou evento (por exemplo, quando o contador começou depois do início da reunião). A correção substitui o valor calculado no site e fica registada com a nota.</p>
       <div class="actions"><a href="/admin/correcoes?week=' . h($prev) . '"><button type="button">◀ Semana anterior</button></a>
-      <strong>' . h(date('d/m/Y', strtotime($sunday))) . ' – ' . h($end->format('d/m/Y')) . '</strong>
+      <strong>' . h(date('d/m/Y', strtotime($monday))) . ' – ' . h($end->format('d/m/Y')) . '</strong>
       <a href="/admin/correcoes?week=' . h($next) . '"><button type="button">Semana seguinte ▶</button></a></div>
       <div class="tablewrap"><table class="admin"><thead><tr><th>Reunião / evento</th><th>Calculado</th><th>Correto</th><th>Nota</th><th></th></tr></thead><tbody>'
         . ($rows ?: '<tr><td colspan="5" class="hint">Ainda não há valores guardados nesta semana (as reuniões só aparecem aqui depois de começarem).</td></tr>')
@@ -407,8 +407,8 @@ if ($route === '/correcoes') {
 if ($route === '/pessoas') {
     $now = new DateTimeImmutable('now', utc());
     $weekParam = (string)($_GET['week'] ?? $_POST['week'] ?? '');
-    $sunday = week_start(is_date($weekParam) ? $weekParam : $now->setTimezone(local_tz())->format('Y-m-d'));
-    $self = '/admin/pessoas?week=' . $sunday;
+    $monday = week_start(is_date($weekParam) ? $weekParam : $now->setTimezone(local_tz())->format('Y-m-d'));
+    $self = '/admin/pessoas?week=' . $monday;
 
     if ($isPost) {
         $day = (string)($_POST['day'] ?? '');
@@ -445,19 +445,19 @@ if ($route === '/pessoas') {
         back($self);
     }
 
-    $services = scheduled_services($con, $sunday);
-    $shown = week_people($con, $sunday, $services);
+    $services = scheduled_services($con, $monday);
+    $shown = week_people($con, $monday, $services);
     $manual = [];
-    foreach (rows($con, "SELECT day, to_char(start_time, 'HH24:MI') AS t, role, value FROM people_overrides WHERE day BETWEEN $1::date AND $1::date + 6", [$sunday]) as $r) {
+    foreach (rows($con, "SELECT day, to_char(start_time, 'HH24:MI') AS t, role, value FROM people_overrides WHERE day BETWEEN $1::date AND $1::date + 6", [$monday]) as $r) {
         $manual[$r['day'] . ' ' . $r['t']][$r['role']] = $r['value'];
     }
-    $prev = (new DateTimeImmutable($sunday))->modify('-7 days')->format('Y-m-d');
-    $next = (new DateTimeImmutable($sunday))->modify('+7 days')->format('Y-m-d');
-    $end = (new DateTimeImmutable($sunday))->modify('+6 days');
+    $prev = (new DateTimeImmutable($monday))->modify('-7 days')->format('Y-m-d');
+    $next = (new DateTimeImmutable($monday))->modify('+7 days')->format('Y-m-d');
+    $end = (new DateTimeImmutable($monday))->modify('+6 days');
 
     $body = '<p class="hint">Os nomes vêm do Planning Center (notas «Person» dos itens MC, Oferta e Pregação, e o líder de louvor da equipa). Escreva um nome para o substituir só nesta reunião; deixe vazio para voltar ao do Planning Center. Os valores do Planning Center aparecem a cinzento.</p>
       <div class="actions"><a href="/admin/pessoas?week=' . h($prev) . '"><button type="button">◀ Semana anterior</button></a>
-      <strong>' . h(date('d/m/Y', strtotime($sunday))) . ' – ' . h($end->format('d/m/Y')) . '</strong>
+      <strong>' . h(date('d/m/Y', strtotime($monday))) . ' – ' . h($end->format('d/m/Y')) . '</strong>
       <a href="/admin/pessoas?week=' . h($next) . '"><button type="button">Semana seguinte ▶</button></a></div>';
     if (!$services) {
         $body .= '<p class="hint">Sem reuniões nesta semana.</p>';
@@ -479,12 +479,12 @@ if ($route === '/pessoas') {
                 // what Planning Center alone would show: recompute without the override when one is set
                 $pcoValue = $p['source'] === 'pco' ? $p['value'] : null;
                 if ($override !== '') {
-                    $pcoValue = pco_value_for($con, $sunday, $services, $key, $role);
+                    $pcoValue = pco_value_for($con, $monday, $services, $key, $role);
                 }
                 $body .= '<td><input form="' . $f . '" type="text" name="' . $role . '" value="' . h($override) . '" maxlength="120" aria-label="' . h($label) . '" placeholder="' . h($pcoValue ?? '—') . '">'
                     . (!empty($p['flag']) && $override === '' ? '<div class="hint">texto livre no Planning Center</div>' : '') . '</td>';
             }
-            $body .= '<td><form id="' . $f . '" method="post">' . csrf_field() . '<input type="hidden" name="week" value="' . h($sunday) . '"><input type="hidden" name="day" value="' . h($s['day']) . '"><input type="hidden" name="start_time" value="' . h($t) . '"><button class="primary">Guardar</button></form></td></tr>';
+            $body .= '<td><form id="' . $f . '" method="post">' . csrf_field() . '<input type="hidden" name="week" value="' . h($monday) . '"><input type="hidden" name="day" value="' . h($s['day']) . '"><input type="hidden" name="start_time" value="' . h($t) . '"><button class="primary">Guardar</button></form></td></tr>';
         }
         $body .= '</tbody></table></div>';
     }

@@ -1,12 +1,41 @@
 {
- "weekStart": "2026-10-18",
- "weekEnd": "2026-10-24",
- "prev": "2026-10-11",
- "next": "2026-10-25",
+ "weekStart": "2026-10-12",
+ "weekEnd": "2026-10-18",
+ "prev": "2026-10-05",
+ "next": "2026-10-19",
  "isCurrent": true,
  "today": "2026-10-18",
  "timezone": "Europe/Lisbon",
  "days": [
+  {
+   "date": "2026-10-13",
+   "services": [
+    {
+     "name": "Reunião das 20:30",
+     "time": "20:30",
+     "start": "2026-10-13T19:30:00Z",
+     "end": "2026-10-13T21:30:00Z",
+     "status": "done",
+     "reportOpen": true,
+     "count": 58,
+     "total": null,
+     "partial": false,
+     "special": false,
+     "people": {}
+    }
+   ],
+   "event": null
+  },
+  {
+   "date": "2026-10-17",
+   "services": [],
+   "event": {
+    "start": "2026-10-17T09:14:00Z",
+    "end": "2026-10-17T13:04:00Z",
+    "count": 22,
+    "peakAt": "2026-10-17T10:35:00Z"
+   }
+  },
   {
    "date": "2026-10-18",
    "services": [
@@ -16,6 +45,7 @@
      "start": "2026-10-18T08:30:00Z",
      "end": "2026-10-18T10:30:00Z",
      "status": "done",
+     "reportOpen": true,
      "count": 138,
      "total": null,
      "partial": false,
@@ -49,8 +79,9 @@
      "start": "2026-10-18T10:30:00Z",
      "end": "2026-10-18T12:30:00Z",
      "status": "running",
+     "reportOpen": true,
      "count": 419,
-     "total": null,
+     "total": 490,
      "partial": false,
      "special": false,
      "people": {
@@ -77,11 +108,31 @@
      }
     },
     {
+     "name": "Reunião das 14:00 (batismos)",
+     "time": "14:00",
+     "start": "2026-10-18T13:00:00Z",
+     "end": "2026-10-18T15:00:00Z",
+     "status": "unknown",
+     "reportOpen": true,
+     "count": null,
+     "total": null,
+     "partial": false,
+     "special": true,
+     "people": {
+      "mc": {
+       "value": "Inês Barros",
+       "source": "pco",
+       "flag": null
+      }
+     }
+    },
+    {
      "name": "Reunião das 17:30",
      "time": "17:30",
      "start": "2026-10-18T16:30:00Z",
      "end": "2026-10-18T18:30:00Z",
      "status": "unknown",
+     "reportOpen": false,
      "count": null,
      "total": null,
      "partial": false,
@@ -101,24 +152,18 @@
     }
    ],
    "event": null
-  },
-  {
-   "date": "2026-10-21",
-   "services": [
-    {
-     "name": "Reunião das 20:30",
-     "time": "20:30",
-     "start": "2026-10-21T19:30:00Z",
-     "end": "2026-10-21T21:30:00Z",
-     "status": "unknown",
-     "count": null,
-     "total": null,
-     "partial": false,
-     "special": false,
-     "people": {}
-    }
-   ],
-   "event": null
   }
- ]
+ ],
+ "totals": {
+  "meetings": 5,
+  "started": 3,
+  "withData": 3,
+  "reports": 1,
+  "shown": 686,
+  "voluntarios": 38,
+  "visitantes": 12,
+  "hillsongKids": 68,
+  "decisoes": 3,
+  "running": 1
+ }
 }

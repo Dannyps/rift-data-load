@@ -187,8 +187,8 @@
   }
 
   function renderWeek(w) {
-    state.week = w.sunday;
-    $('weekCtl').innerHTML = '<button type="button" id="wPrev">◀ Anterior</button><strong>' + shortFmt.format(dateOf(w.sunday)) + ' – ' + shortFmt.format(new Date(dateOf(w.sunday).getTime() + 6 * 864e5)) + '</strong>' +
+    state.week = w.weekStart;
+    $('weekCtl').innerHTML = '<button type="button" id="wPrev">◀ Anterior</button><strong>' + shortFmt.format(dateOf(w.weekStart)) + ' – ' + shortFmt.format(new Date(dateOf(w.weekStart).getTime() + 6 * 864e5)) + '</strong>' +
       '<button type="button" id="wCur"' + (w.isCurrent ? ' disabled' : '') + '>Esta semana</button><button type="button" id="wNext">Seguinte ▶</button>';
     $('wPrev').onclick = function () { state.week = w.prev; url(); loadWeek(); };
     $('wNext').onclick = function () { state.week = w.next; url(); loadWeek(); };

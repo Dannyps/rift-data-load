@@ -1,12 +1,31 @@
 {
- "weekStart": "2026-10-25",
- "weekEnd": "2026-10-31",
- "prev": "2026-10-18",
- "next": "2026-11-01",
+ "weekStart": "2026-10-19",
+ "weekEnd": "2026-10-25",
+ "prev": "2026-10-12",
+ "next": "2026-10-26",
  "isCurrent": false,
  "today": "2026-10-18",
  "timezone": "Europe/Lisbon",
  "days": [
+  {
+   "date": "2026-10-21",
+   "services": [
+    {
+     "name": "Especial de Outono",
+     "time": "19:30",
+     "start": "2026-10-21T18:30:00Z",
+     "end": "2026-10-21T20:30:00Z",
+     "status": "unknown",
+     "reportOpen": false,
+     "count": null,
+     "total": null,
+     "partial": false,
+     "special": true,
+     "people": {}
+    }
+   ],
+   "event": null
+  },
   {
    "date": "2026-10-25",
    "services": [
@@ -16,6 +35,7 @@
      "start": "2026-10-25T09:30:00Z",
      "end": "2026-10-25T11:30:00Z",
      "status": "unknown",
+     "reportOpen": false,
      "count": null,
      "total": null,
      "partial": false,
@@ -34,6 +54,7 @@
      "start": "2026-10-25T11:30:00Z",
      "end": "2026-10-25T13:30:00Z",
      "status": "unknown",
+     "reportOpen": false,
      "count": null,
      "total": null,
      "partial": false,
@@ -46,6 +67,7 @@
      "start": "2026-10-25T17:30:00Z",
      "end": "2026-10-25T19:30:00Z",
      "status": "unknown",
+     "reportOpen": false,
      "count": null,
      "total": null,
      "partial": false,
@@ -54,24 +76,18 @@
     }
    ],
    "event": null
-  },
-  {
-   "date": "2026-10-28",
-   "services": [
-    {
-     "name": "Especial de Outono",
-     "time": "19:30",
-     "start": "2026-10-28T19:30:00Z",
-     "end": "2026-10-28T21:30:00Z",
-     "status": "unknown",
-     "count": null,
-     "total": null,
-     "partial": false,
-     "special": true,
-     "people": {}
-    }
-   ],
-   "event": null
   }
- ]
+ ],
+ "totals": {
+  "meetings": 4,
+  "started": 0,
+  "withData": 0,
+  "reports": 0,
+  "shown": null,
+  "voluntarios": null,
+  "visitantes": null,
+  "hillsongKids": null,
+  "decisoes": null,
+  "running": 0
+ }
 }
