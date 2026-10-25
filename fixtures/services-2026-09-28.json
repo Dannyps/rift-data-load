@@ -1,0 +1,22 @@
+{
+ "weekStart": "2026-09-28",
+ "weekEnd": "2026-10-04",
+ "prev": "2026-09-21",
+ "next": "2026-10-05",
+ "isCurrent": false,
+ "today": "2026-10-18",
+ "timezone": "Europe/Lisbon",
+ "days": [],
+ "totals": {
+  "meetings": 0,
+  "started": 0,
+  "withData": 0,
+  "reports": 0,
+  "shown": null,
+  "voluntarios": null,
+  "visitantes": null,
+  "hillsongKids": null,
+  "decisoes": null,
+  "running": 0
+ }
+}

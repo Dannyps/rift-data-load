@@ -31,20 +31,54 @@ function local_tz(): DateTimeZone
     return $z ??= new DateTimeZone(LOCAL_TZ);
 }
 
-/** The Sunday (local date, 'Y-m-d') starting the week that contains $day ('Y-m-d'). */
+/** The Monday (local date, 'Y-m-d') starting the week that contains $day ('Y-m-d'). Weeks run Monday to Sunday. */
 function week_start(string $day): string
 {
     $d = new DateTimeImmutable($day, local_tz());
-    return $d->modify('-' . $d->format('w') . ' days')->format('Y-m-d');
+    return $d->modify('-' . ((int)$d->format('N') - 1) . ' days')->format('Y-m-d');
+}
+
+/** How long before a meeting starts its report (counts, names) can be filled in. */
+const REPORT_OPEN_BEFORE_MIN = 120;
+
+/** Can the report of a meeting be edited yet? From 2 hours before it starts (and for ever after). $windowStart is the stored UTC start. */
+function report_window_open(string $windowStart, DateTimeImmutable $now): bool
+{
+    return parse_ts($windowStart)->modify('-' . REPORT_OPEN_BEFORE_MIN . ' minutes') <= $now->setTimezone(utc());
 }
 
 /**
- * The services scheduled in the week from $sunday: a date with special_days rows uses only those,
+ * The totals of a week from its meetings (each: status, count, total, report). 'shown' adds what the cards show (the
+ * on-site total when a report is saved, else the counter's figure); the categories only add the meetings that have a saved
+ * report, so 'reports' and 'withData' say how complete a sum is. Events are not meetings and are not counted.
+ */
+function week_totals(array $meetings): array
+{
+    $started = array_filter($meetings, fn($m) => $m['status'] !== 'unknown');
+    $shown = array_filter(array_map(fn($m) => $m['total'] ?? $m['count'], $started), fn($v) => $v !== null);
+    $withReport = array_filter($started, fn($m) => !empty($m['report']));
+    $cat = fn(string $k) => $withReport ? array_sum(array_map(fn($m) => (int)$m['report'][$k], $withReport)) : null;
+    return [
+        'meetings' => count($meetings),
+        'started' => count($started),
+        'withData' => count($shown),
+        'reports' => count($withReport),
+        'shown' => $shown ? array_sum($shown) : null,
+        'voluntarios' => $cat('voluntarios'),
+        'visitantes' => $cat('visitantes'),
+        'hillsongKids' => $withReport ? array_sum(array_map(fn($m) => (int)$m['report']['kids'] + (int)$m['report']['auditorio'], $withReport)) : null,
+        'decisoes' => $cat('decisoes'),
+        'running' => count(array_filter($meetings, fn($m) => $m['status'] === 'running')),
+    ];
+}
+
+/**
+ * The services scheduled in the week from $monday: a date with special_days rows uses only those,
  * otherwise the active weekly services for its weekday. Windows are naive UTC (DST handled by Postgres).
  * Meetings already frozen in service_snapshots stay in the list even when the schedule no longer has them
  * (weekly meeting deactivated/deleted/moved, special day removed): history must not change with the schedule.
  */
-function scheduled_services($con, string $sunday): array
+function scheduled_services($con, string $monday): array
 {
     $res = pg_query_params($con, "
         WITH days AS (
@@ -68,7 +102,7 @@ function scheduled_services($con, string $sunday): array
                ((day + start_time) AT TIME ZONE $2) AT TIME ZONE 'UTC' AS window_start,
                (((day + start_time) AT TIME ZONE $2) AT TIME ZONE 'UTC') + make_interval(mins => duration_min) AS window_end
         FROM all_services ORDER BY day, start_time
-    ", [$sunday, LOCAL_TZ]);
+    ", [$monday, LOCAL_TZ]);
 
     return pg_fetch_all($res) ?: [];
 }
@@ -84,19 +118,19 @@ function iso(?string $naiveUtc): ?string
 }
 
 /**
- * Brings the saved snapshots of the week from $sunday up to date as of $now and returns the week.
+ * Brings the saved snapshots of the week from $monday up to date as of $now and returns the week.
  * Frozen snapshots are never touched; a manual corrected_peak wins when displaying.
  */
-function services_week($con, DateTimeImmutable $now, string $sunday): array
+function services_week($con, DateTimeImmutable $now, string $monday): array
 {
-    $services = scheduled_services($con, $sunday);
+    $services = scheduled_services($con, $monday);
 
     $saved = [];
-    foreach (pg_fetch_all(pg_query_params($con, "SELECT * FROM service_snapshots WHERE day BETWEEN $1::date AND $1::date + 6", [$sunday])) ?: [] as $r) {
+    foreach (pg_fetch_all(pg_query_params($con, "SELECT * FROM service_snapshots WHERE day BETWEEN $1::date AND $1::date + 6", [$monday])) ?: [] as $r) {
         $saved[$r['day'] . ' ' . $r['start_time']] = $r;
     }
     $savedEvents = [];
-    foreach (pg_fetch_all(pg_query_params($con, "SELECT * FROM event_snapshots WHERE day BETWEEN $1::date AND $1::date + 6", [$sunday])) ?: [] as $r) {
+    foreach (pg_fetch_all(pg_query_params($con, "SELECT * FROM event_snapshots WHERE day BETWEEN $1::date AND $1::date + 6", [$monday])) ?: [] as $r) {
         $savedEvents[$r['day']] = $r;
     }
 
@@ -104,9 +138,9 @@ function services_week($con, DateTimeImmutable $now, string $sunday): array
     $grace = new DateInterval('PT' . FREEZE_GRACE_MIN . 'M');
     $serviceDays = array_flip(array_column($services, 'day'));
     $settings = stats_settings($con);
-    $devotionalPlans = plans_by_day($con, $sunday);
+    $devotionalPlans = plans_by_day($con, $monday);
     $savedExit = [];
-    foreach (pg_fetch_all(pg_query_params($con, "SELECT day, to_char(ref_time, 'HH24:MI') AS ref FROM exit_stats WHERE day BETWEEN $1::date AND $1::date + 6", [$sunday])) ?: [] as $r) {
+    foreach (pg_fetch_all(pg_query_params($con, "SELECT day, to_char(ref_time, 'HH24:MI') AS ref FROM exit_stats WHERE day BETWEEN $1::date AND $1::date + 6", [$monday])) ?: [] as $r) {
         $savedExit[$r['day'] . ' ' . $r['ref']] = true;
     }
 
@@ -133,7 +167,7 @@ function services_week($con, DateTimeImmutable $now, string $sunday): array
     }
     $eventDays = [];
     for ($i = 0; $i < 7; $i++) {
-        $day = (new DateTimeImmutable($sunday, utc()))->modify("+$i days")->format('Y-m-d');
+        $day = (new DateTimeImmutable($monday, utc()))->modify("+$i days")->format('Y-m-d');
         $dayStart = parse_ts(day_start_utc(new DateTimeImmutable("$day 12:00", local_tz())));
         $row = $savedEvents[$day] ?? null;
         if ($dayStart <= $nowUtc && (!$row || $row['frozen'] !== 't')) {
@@ -143,7 +177,7 @@ function services_week($con, DateTimeImmutable $now, string $sunday): array
 
     if ($todo || $eventDays || $exitTodo) {
         $firstReading = pg_fetch_result(pg_query($con, 'SELECT min("timestamp") FROM records'), 0, 0);
-        $weekStart = new DateTimeImmutable($sunday . ' 12:00', local_tz());
+        $weekStart = new DateTimeImmutable($monday . ' 12:00', local_tz());
         $entries = $firstReading ? balance_entries($con, $weekStart) : [];
 
         foreach ($todo as $s) {
@@ -165,7 +199,7 @@ function services_week($con, DateTimeImmutable $now, string $sunday): array
         }
     }
 
-    return week_view($con, $now, $sunday, $services);
+    return week_view($con, $now, $monday, $services);
 }
 
 function snapshot_service($con, array $s, array $entries, ?string $firstReading, DateTimeImmutable $now, DateInterval $grace, array $settings, DateTimeImmutable $devotionalAt): void
@@ -229,10 +263,10 @@ function snapshot_exit($con, string $day, string $ref, DateTimeImmutable $refUtc
 }
 
 /** Planning Center plans of the week by day: [day => [['times' => [...], 'devotional' => wall|null], ...]] */
-function plans_by_day($con, string $sunday): array
+function plans_by_day($con, string $monday): array
 {
     $out = [];
-    foreach (pg_fetch_all(pg_query_params($con, 'SELECT day, service_times, devotional_start FROM pco_plans WHERE day BETWEEN $1::date AND $1::date + 6 ORDER BY service_type_id', [$sunday])) ?: [] as $r) {
+    foreach (pg_fetch_all(pg_query_params($con, 'SELECT day, service_times, devotional_start FROM pco_plans WHERE day BETWEEN $1::date AND $1::date + 6 ORDER BY service_type_id', [$monday])) ?: [] as $r) {
         $out[$r['day']][] = ['times' => json_decode($r['service_times'], true), 'devotional' => $r['devotional_start']];
     }
     return $out;
@@ -338,14 +372,14 @@ const PEOPLE_ROLES = ['mc' => 'MC', 'oferta' => 'Oferta', 'lider' => 'Líder lou
  * A plan matches a meeting of its day that starts within the plan's service times (30 min early allowed):
  * the Sunday morning plan covers both the 09:30 and the 11:30 meeting. Manual overrides win.
  */
-function week_people($con, string $sunday, array $services, bool $withOverrides = true): array
+function week_people($con, string $monday, array $services, bool $withOverrides = true): array
 {
     $plans = [];
-    foreach (pg_fetch_all(pg_query_params($con, 'SELECT * FROM pco_plans WHERE day BETWEEN $1::date AND $1::date + 6 ORDER BY service_type_id', [$sunday])) ?: [] as $r) {
+    foreach (pg_fetch_all(pg_query_params($con, 'SELECT * FROM pco_plans WHERE day BETWEEN $1::date AND $1::date + 6 ORDER BY service_type_id', [$monday])) ?: [] as $r) {
         $plans[$r['day']][] = ['times' => json_decode($r['service_times'], true), 'raw' => json_decode($r['people_raw'] ?? 'null', true)];
     }
     $overrides = [];
-    foreach (pg_fetch_all(pg_query_params($con, "SELECT day, to_char(start_time, 'HH24:MI') AS t, role, value FROM people_overrides WHERE day BETWEEN $1::date AND $1::date + 6", [$sunday])) ?: [] as $r) {
+    foreach (pg_fetch_all(pg_query_params($con, "SELECT day, to_char(start_time, 'HH24:MI') AS t, role, value FROM people_overrides WHERE day BETWEEN $1::date AND $1::date + 6", [$monday])) ?: [] as $r) {
         $overrides[$r['day'] . ' ' . $r['t']][$r['role']] = $r['value'];
     }
     if (!$withOverrides) {
@@ -411,26 +445,27 @@ function week_people($con, string $sunday, array $services, bool $withOverrides 
 }
 
 /** The saved state shaped for the page: only days with a scheduled service or an event. */
-function week_view($con, DateTimeImmutable $now, string $sunday, array $services): array
+function week_view($con, DateTimeImmutable $now, string $monday, array $services): array
 {
     $nowUtc = $now->setTimezone(utc());
 
     $saved = [];
-    foreach (pg_fetch_all(pg_query_params($con, "SELECT * FROM service_snapshots WHERE day BETWEEN $1::date AND $1::date + 6", [$sunday])) ?: [] as $r) {
+    foreach (pg_fetch_all(pg_query_params($con, "SELECT * FROM service_snapshots WHERE day BETWEEN $1::date AND $1::date + 6", [$monday])) ?: [] as $r) {
         $saved[$r['day'] . ' ' . $r['start_time']] = $r;
     }
     $events = [];
-    foreach (pg_fetch_all(pg_query_params($con, "SELECT * FROM event_snapshots WHERE day BETWEEN $1::date AND $1::date + 6", [$sunday])) ?: [] as $r) {
+    foreach (pg_fetch_all(pg_query_params($con, "SELECT * FROM event_snapshots WHERE day BETWEEN $1::date AND $1::date + 6", [$monday])) ?: [] as $r) {
         $events[$r['day']] = $r;
     }
     $reports = [];
-    foreach (pg_fetch_all(pg_query_params($con, "SELECT day, start_time, assistencia, kids, auditorio, adultos_fora FROM meeting_reports WHERE day BETWEEN $1::date AND $1::date + 6", [$sunday])) ?: [] as $r) {
+    foreach (pg_fetch_all(pg_query_params($con, "SELECT day, start_time, assistencia, kids, auditorio, adultos_fora, voluntarios, visitantes, decisoes FROM meeting_reports WHERE day BETWEEN $1::date AND $1::date + 6", [$monday])) ?: [] as $r) {
         $reports[$r['day'] . ' ' . $r['start_time']] = $r;
     }
 
-    $people = week_people($con, $sunday, $services);
+    $people = week_people($con, $monday, $services);
 
     $days = [];
+    $forTotals = [];
     foreach ($services as $s) {
         $ws = parse_ts($s['window_start']);
         $we = parse_ts($s['window_end']);
@@ -456,12 +491,14 @@ function week_view($con, DateTimeImmutable $now, string $sunday, array $services
             $total = (int)$rep['assistencia'] + (int)$rep['kids'] + (int)$rep['auditorio'] + (int)$rep['adultos_fora'];
         }
 
+        $forTotals[] = ['status' => $status, 'count' => $count, 'total' => $total, 'report' => $reports[$s['day'] . ' ' . $s['start_time']] ?? null];
         $days[$s['day']]['services'][] = [
             'name' => $s['name'],
             'time' => substr($s['start_time'], 0, 5),
             'start' => iso($s['window_start']),
             'end' => iso($s['window_end']),
             'status' => $status,
+            'reportOpen' => report_window_open($s['window_start'], $now),     // the report can be filled in from 2 hours before the start
             'count' => $count,
             'total' => $total,
             'partial' => $status !== 'unknown' && $row && $row['partial'] === 't',
@@ -493,25 +530,26 @@ function week_view($con, DateTimeImmutable $now, string $sunday, array $services
         $out[] = ['date' => $day, 'services' => $d['services'] ?? [], 'event' => $d['event'] ?? null];
     }
 
-    $prev = (new DateTimeImmutable($sunday))->modify('-7 days')->format('Y-m-d');
-    $next = (new DateTimeImmutable($sunday))->modify('+7 days')->format('Y-m-d');
+    $prev = (new DateTimeImmutable($monday))->modify('-7 days')->format('Y-m-d');
+    $next = (new DateTimeImmutable($monday))->modify('+7 days')->format('Y-m-d');
 
     return [
-        'weekStart' => $sunday,
-        'weekEnd' => (new DateTimeImmutable($sunday))->modify('+6 days')->format('Y-m-d'),
+        'weekStart' => $monday,
+        'weekEnd' => (new DateTimeImmutable($monday))->modify('+6 days')->format('Y-m-d'),
         'prev' => $prev,
         'next' => $next,
-        'isCurrent' => $sunday === week_start($now->setTimezone(local_tz())->format('Y-m-d')),
+        'isCurrent' => $monday === week_start($now->setTimezone(local_tz())->format('Y-m-d')),
         'today' => $now->setTimezone(local_tz())->format('Y-m-d'),
         'timezone' => LOCAL_TZ,
         'days' => $out,
+        'totals' => week_totals($forTotals),
     ];
 }
 
 /** What Planning Center alone gives for one role of one meeting ("day HH:MM" key), ignoring manual overrides. */
-function pco_value_for($con, string $sunday, array $services, string $key, string $role): ?string
+function pco_value_for($con, string $monday, array $services, string $key, string $role): ?string
 {
     static $cache = [];
-    $cache[$sunday] ??= week_people($con, $sunday, $services, false);
-    return $cache[$sunday][$key][$role]['value'] ?? null;
+    $cache[$monday] ??= week_people($con, $monday, $services, false);
+    return $cache[$monday][$key][$role]['value'] ?? null;
 }

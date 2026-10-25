@@ -28,6 +28,8 @@
 
   <div id="days"></div>
 
+  <section id="weektotals" class="weektotals" aria-labelledby="wtTitle" hidden></section>
+
   <footer>
     <p><b>O que significam os valores.</b> Cada cartão de reunião mostra o número máximo de pessoas dentro do edifício
       durante a reunião, desde a hora de início até ao fim da sua duração (normalmente duas horas). Antes de a reunião
@@ -39,7 +41,7 @@
     <p>O número de pessoas dentro é uma estimativa a partir das entradas e saídas (ver a página de gráficos) e é reposto
       a zero às 04:00 (ou por um administrador, quando se confirma que o edifício está vazio). Quando o contador só começou a registar depois do início da reunião, o valor indica
       <i>dados parciais</i> e pode ficar abaixo do real. O contador envia os dados com cerca de 4 minutos de atraso.
-      As semanas vão de domingo a sábado e as horas são as de Portugal continental.</p>
+      As semanas vão de segunda-feira a domingo e as horas são as de Portugal continental.</p>
     <p class="footer-links"><a href="/admin">Administração</a></p>
   </footer>
 </main>
@@ -100,10 +102,10 @@ function peopleBlock(s) {
 // Clipboard-with-lines icon (a report), drawn inline so it takes the text colour in light and dark.
 const REPORT_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="5.5" y="4.5" width="13" height="17" rx="2"/><rect x="9" y="2.5" width="6" height="4" rx="1.2"/><path d="M9 11h6M9 14.5h6M9 18h3.5"/></svg>';
 
-// A meeting that has not started has nothing to report yet: the button is shown but disabled (not clickable or focusable).
+// The report (counts, names) can be filled in from 2 hours before the meeting starts: until then the button is shown but disabled (not clickable or focusable).
 function infoButton(key, disabled) {
   return disabled
-    ? `<button type="button" class="info-btn" data-report="${esc(key)}" disabled aria-label="Relatório da reunião: disponível quando a reunião começar" title="Disponível quando a reunião começar">${REPORT_ICON}</button>`
+    ? `<button type="button" class="info-btn" data-report="${esc(key)}" disabled aria-label="Relatório da reunião: disponível 2 horas antes da reunião" title="Disponível 2 horas antes da reunião">${REPORT_ICON}</button>`
     : `<button type="button" class="info-btn" data-report="${esc(key)}" aria-label="Relatório da reunião (texto para copiar)" aria-haspopup="dialog" title="Relatório">${REPORT_ICON}</button>`;
 }
 
@@ -134,7 +136,7 @@ function serviceCard(s, date) {
   }
   const partial = s.partial && s.status !== 'unknown' ? '<div class="note">Dados parciais: o contador começou depois do início da reunião.</div>' : '';
   const id = meetingId(date, s.time);
-  return `<div class="card" id="${id}">${infoButton('s|' + date + '|' + s.time, s.status === 'unknown')}${linkButton(id)}<div class="title"><span>${esc(s.name)}${s.special ? ' <span class="badge">dia especial</span>' : ''}</span><span class="time">${s.time}</span></div>${count}${state}${partial}${peopleBlock(s)}</div>`;
+  return `<div class="card" id="${id}">${infoButton('s|' + date + '|' + s.time, !s.reportOpen)}${linkButton(id)}<div class="title"><span>${esc(s.name)}${s.special ? ' <span class="badge">dia especial</span>' : ''}</span><span class="time">${s.time}</span></div>${count}${state}${partial}${peopleBlock(s)}</div>`;
 }
 
 function eventCard(e, date) {
@@ -160,7 +162,32 @@ function render() {
     `<h2><span class="dayname">${dayFmt.format(dateOf(d.date))}</span>${d.date === data.today ? ' <span class="badge">hoje</span>' : ''}</h2>` +
     `<div class="cards">${d.services.map(s => serviceCard(s, d.date)).join('')}${d.event ? eventCard(d.event, d.date) : ''}</div></section>`).join('')
     : '<div class="empty">Sem reuniões nem eventos nesta semana.</div>';
+  renderTotals();
   markLinked(true);
+}
+
+// ---------------------------------------------------------------- totals of the week (below the days)
+
+const fmtN = n => (n === null || n === undefined) ? '–' : n.toLocaleString(LOCALE);
+
+function renderTotals() {
+  const box = $('weektotals'), t = data.totals;
+  // nothing to add up yet (a future week, or a week from before the counter): no section
+  if (!t || !t.meetings || (t.shown === null && !t.reports)) { box.hidden = true; box.innerHTML = ''; return; }
+  const a = dateOf(data.weekStart), b = dateOf(data.weekEnd);
+  const tile = (cls, label, value, note) => `<div class="wt-tile ${cls}"><div class="wt-label">${label}</div><div class="wt-value">${fmtN(value)}</div>${note ? `<div class="wt-note">${note}</div>` : ''}</div>`;
+  const notes = [];
+  if (t.withData < t.started) notes.push(`O total só soma as ${t.withData} de ${t.started} reuniões que já começaram e têm valor.`);
+  if (t.running) notes.push('Há reuniões a decorrer: os totais ainda podem subir.');
+  if (t.started < t.meetings) notes.push(`Faltam ${t.meetings - t.started} reunião(ões) por começar.`);
+  if (t.reports < t.started) notes.push(`Relatórios guardados: ${t.reports} de ${t.started}; voluntários, visitantes, Hillsong Kids e decisões só somam esses.`);
+  box.innerHTML = `<h2 id="wtTitle">Totais da semana <span class="badge">${shortFmt.format(a)} – ${shortFmt.format(b)}</span></h2>` +
+    `<div class="wt-grid">` +
+    tile('wt-total', 'Total de pessoas', t.shown, `soma dos cartões · ${t.withData} ${t.withData === 1 ? 'reunião' : 'reuniões'}`) +
+    tile('wt-vol', 'Voluntários', t.voluntarios) + tile('wt-vis', 'Visitantes', t.visitantes) +
+    tile('wt-kids', 'Hillsong Kids', t.hillsongKids) + tile('wt-dec', 'Decisões', t.decisoes) +
+    `</div>` + (notes.length ? `<ul class="wt-notes">${notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul>` : '');
+  box.hidden = false;
 }
 
 // ---------------------------------------------------------------- links to a single card (#r-YYYY-MM-DD-HHMM)
@@ -281,7 +308,7 @@ function cardFor(key) {
     return e && { kind: 'e', date, name: 'Evento', time: '', start: hhmm(e.start), end: hhmm(e.end), count: e.count, people: null };
   }
   const s = day.services.find(x => x.time === time);
-  if (s && s.status === 'unknown') return null;   // not started: no report
+  if (s && !s.reportOpen) return null;   // too early: the report opens 2 hours before the meeting
   return s && { kind: 's', date, name: s.name, time: s.time, people: s.people, count: s.count };
 }
 

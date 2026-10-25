@@ -4,7 +4,7 @@
   python3 tools/make_fixtures.py        # writes fixtures/chart-<range>.json and fixtures/services*.json
 
 The preview's fixed 'now' is Sunday 2026-10-18 12:15 Lisbon: the 09:30 meeting is done, the 11:30 one is running, the
-17:30 one has not started. Names are invented. Re-run only when the JSON shapes of api.php / services.php change.
+14:00 one opens its report (2 hours before), the 17:30 one has not started. Weeks run Monday to Sunday. Names are invented. Re-run only when the JSON shapes of api.php / services.php change.
 """
 import json
 import os
@@ -76,49 +76,75 @@ def at(day, hhmm):
     return datetime(*map(int, day.split('-')), h, m, tzinfo=LISBON)
 
 
-def svc(day, hhmm, status, count, name=None, partial=False, special=False, ppl=None, minutes_=120, total=None):
+REPORTS = {}      # (day, time) -> saved report figures, only used to add up the week totals
+
+
+def svc(day, hhmm, status, count, name=None, partial=False, special=False, ppl=None, minutes_=120, total=None, report=None):
     s = at(day, hhmm)
+    if report:
+        REPORTS[(day, hhmm)] = report
     return {'name': name or f'Reunião das {hhmm}', 'time': hhmm, 'start': iso(s), 'end': iso(s + timedelta(minutes=minutes_)),
-            'status': status, 'count': count, 'total': total, 'partial': partial, 'special': special, 'people': ppl if ppl is not None else {}}
+            'status': status, 'reportOpen': s - timedelta(minutes=120) <= NOW,      # the report can be filled in from 2 hours before the start
+            'count': count, 'total': total, 'partial': partial, 'special': special, 'people': ppl if ppl is not None else {}}
 
 
 def event(day, start, end, count, peak_at):
     return {'start': iso(at(day, start)), 'end': iso(at(day, end)), 'count': count, 'peakAt': iso(at(day, peak_at))}
 
 
-def week(sunday, days, current=False):
-    d0 = datetime.strptime(sunday, '%Y-%m-%d')
+def totals(days):
+    """The same figures as week_totals() in src/services.php."""
+    ms = [(d['date'], s) for d in days for s in d['services']]
+    started = [(day, s) for day, s in ms if s['status'] != 'unknown']
+    shown = [s['total'] if s['total'] is not None else s['count'] for _, s in started if (s['total'] if s['total'] is not None else s['count']) is not None]
+    reps = [REPORTS[(day, s['time'])] for day, s in started if (day, s['time']) in REPORTS]
+    cat = lambda k: sum(r[k] for r in reps) if reps else None
+    return {'meetings': len(ms), 'started': len(started), 'withData': len(shown), 'reports': len(reps), 'shown': sum(shown) if shown else None,
+            'voluntarios': cat('voluntarios'), 'visitantes': cat('visitantes'), 'hillsongKids': (sum(r['kids'] + r['auditorio'] for r in reps) if reps else None),
+            'decisoes': cat('decisoes'), 'running': sum(1 for _, s in ms if s['status'] == 'running')}
+
+
+def week(monday, days, current=False):
+    """A week Monday to Sunday starting on the date `monday`."""
+    d0 = datetime.strptime(monday, '%Y-%m-%d')
     ymd = lambda d: d.strftime('%Y-%m-%d')
-    return {'weekStart': sunday, 'weekEnd': ymd(d0 + timedelta(days=6)), 'prev': ymd(d0 - timedelta(days=7)), 'next': ymd(d0 + timedelta(days=7)),
-            'isCurrent': current, 'today': '2026-10-18', 'timezone': 'Europe/Lisbon', 'days': days}
+    return {'weekStart': monday, 'weekEnd': ymd(d0 + timedelta(days=6)), 'prev': ymd(d0 - timedelta(days=7)), 'next': ymd(d0 + timedelta(days=7)),
+            'isCurrent': current, 'today': '2026-10-18', 'timezone': 'Europe/Lisbon', 'days': days, 'totals': totals(days)}
 
 
-A = [  # the current week: running meeting + not started + a weekday evening
+R1 = {'voluntarios': 38, 'visitantes': 12, 'kids': 61, 'auditorio': 7, 'decisoes': 3}
+A = [  # the current week (Monday 12 to Sunday 18 October): a weekday evening, an event, then Sunday: done, running, one opening soon, one later
+    {'date': '2026-10-13', 'services': [svc('2026-10-13', '20:30', 'done', 58, ppl={})], 'event': None},
+    {'date': '2026-10-17', 'services': [], 'event': event('2026-10-17', '10:14', '14:04', 22, '11:35')},
     {'date': '2026-10-18', 'services': [
         svc('2026-10-18', '09:30', 'done', 138, ppl=people('Ana Ferreira', 'Rui Almeida', 'Sofia Lopes', 'Pr. Miguel Duarte')),
-        svc('2026-10-18', '11:30', 'running', 419, ppl=people('Carlos Mendes', 'Rui Almeida', 'Sofia Lopes', 'Pr. Miguel Duarte')),
+        svc('2026-10-18', '11:30', 'running', 419, total=490, report=R1, ppl=people('Carlos Mendes', 'Rui Almeida', 'Sofia Lopes', 'Pr. Miguel Duarte')),
+        svc('2026-10-18', '14:00', 'unknown', None, name='Reunião das 14:00 (batismos)', special=True, ppl=people('Inês Barros')),
         svc('2026-10-18', '17:30', 'unknown', None, ppl=people('Inês Barros', None, 'Tomás Pinto')),
     ], 'event': None},
-    {'date': '2026-10-21', 'services': [svc('2026-10-21', '20:30', 'unknown', None, ppl={})], 'event': None},
 ]
-B = [  # a past week: partial data, no data, a special day, an event
+B = [  # a past week (Monday 5 to Sunday 11 October): partial data, no data, a special day, an event, a saved report
+    {'date': '2026-10-07', 'services': [svc('2026-10-07', '19:30', 'done', 64, name='Noite de Louvor', special=True, ppl={})], 'event': None},
+    {'date': '2026-10-08', 'services': [svc('2026-10-08', '20:30', 'done', None, ppl={})], 'event': None},
+    {'date': '2026-10-10', 'services': [], 'event': event('2026-10-10', '10:14', '14:04', 22, '11:35')},
     {'date': '2026-10-11', 'services': [
         svc('2026-10-11', '09:30', 'done', 112, partial=True, ppl=people('Ana Ferreira', 'Rui Almeida', 'Sofia Lopes', 'Pr. Miguel Duarte')),
-        svc('2026-10-11', '11:30', 'done', 407, total=484, ppl=people('Carlos Mendes', 'Rui Almeida', 'Sofia Lopes', 'Pr. Miguel Duarte')),
+        svc('2026-10-11', '11:30', 'done', 407, total=484, report={'voluntarios': 35, 'visitantes': 9, 'kids': 55, 'auditorio': 6, 'decisoes': 2},
+            ppl=people('Carlos Mendes', 'Rui Almeida', 'Sofia Lopes', 'Pr. Miguel Duarte')),
         svc('2026-10-11', '17:30', 'done', 89, ppl=people('Inês Barros', 'Tomás Pinto', 'Beatriz Cruz', 'Pra. Helena Costa')),
     ], 'event': None},
-    {'date': '2026-10-14', 'services': [svc('2026-10-14', '19:30', 'done', 64, name='Noite de Louvor', special=True, ppl={})], 'event': None},
-    {'date': '2026-10-15', 'services': [svc('2026-10-15', '20:30', 'done', None, ppl={})], 'event': None},
-    {'date': '2026-10-17', 'services': [], 'event': event('2026-10-17', '10:14', '14:04', 22, '11:35')},
 ]
 C = []  # an empty week
-D = [  # a future week with a special day (clocks change that Sunday)
+D = [  # a future week (Monday 19 to Sunday 25 October) with a special day; clocks go back that Sunday
+    {'date': '2026-10-21', 'services': [svc('2026-10-21', '19:30', 'unknown', None, name='Especial de Outono', special=True)], 'event': None},
     {'date': '2026-10-25', 'services': [svc('2026-10-25', '09:30', 'unknown', None, ppl=people('Ana Ferreira')),
                                          svc('2026-10-25', '11:30', 'unknown', None), svc('2026-10-25', '17:30', 'unknown', None)], 'event': None},
-    {'date': '2026-10-28', 'services': [svc('2026-10-28', '19:30', 'unknown', None, name='Especial de Outono', special=True)], 'event': None},
 ]
-write('services.json', week('2026-10-18', A, current=True))
-write('services-2026-10-11.json', week('2026-10-11', B))
-write('services-2026-10-04.json', week('2026-10-04', C))
-write('services-2026-10-25.json', week('2026-10-25', D))
+for f in os.listdir(OUT):
+    if f.startswith('services'):
+        os.remove(os.path.join(OUT, f))        # the weeks used to start on Sunday: no stale files
+write('services.json', week('2026-10-12', A, current=True))
+write('services-2026-10-05.json', week('2026-10-05', B))
+write('services-2026-09-28.json', week('2026-09-28', C))
+write('services-2026-10-19.json', week('2026-10-19', D))
 print('fixtures written to', os.path.abspath(OUT))
