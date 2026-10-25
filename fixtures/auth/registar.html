@@ -1,0 +1,20 @@
+<!doctype html><html lang="pt-PT"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><link rel="icon" href="/favicon.ico" sizes="48x48"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><title>Criar conta · RIFT</title><link rel="stylesheet" href="/assets/site.css?v=1792919131"></head><body class="admin"><main><header><div class="title"><h1>Contador de pessoas RIFT</h1></div><div class="who"></div></header><h2>Criar conta</h2>
+        <form method="post" class="card narrow" action="/registar"><input type="hidden" name="csrf" value="adde2b6f625a8fbca21287041d3def2eb79ef84f6aa0d5d7f55ba1a1f7728707">
+          <p class="hint">A conta só fica ativa depois de um gestor a aprovar. Precisa do código de acesso que lhe foi dado.</p>
+          <label for="name">Nome</label>
+          <input type="text" id="name" name="name" value="" maxlength="80" autocomplete="name" required>
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" value="" maxlength="120" autocomplete="email" required>
+          <label for="username">Nome de utilizador</label>
+          <input type="text" id="username" name="username" value="" maxlength="32" autocomplete="username" autocapitalize="none" required>
+          <label for="password">Palavra-passe</label>
+          <input type="password" id="password" name="password" autocomplete="new-password" required>
+          <label for="password2">Repetir a palavra-passe</label>
+          <input type="password" id="password2" name="password2" autocomplete="new-password" required>
+          <p class="hint">Pelo menos 10 caracteres. Nome de utilizador: 3 a 32 caracteres (letras minúsculas, números, ponto, hífen ou sublinhado).</p>
+          <label for="code">Código de acesso</label>
+          <input type="text" id="code" name="code" autocomplete="off" autocapitalize="none" required>
+          <div class="hp" aria-hidden="true"><label for="ref_empresa">Não preencher</label><input type="text" id="ref_empresa" name="ref_empresa" tabindex="-1" autocomplete="off"></div>
+          <p><button class="primary">Pedir conta</button></p>
+          <p class="hint"><a href="/entrar">Já tenho conta</a></p>
+        </form></main><script src="/assets/admin.js?v=1792249809"></script></body></html>

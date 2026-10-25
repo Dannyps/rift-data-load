@@ -2,6 +2,7 @@
 
 require(__DIR__ . "/src/log.php");
 require(__DIR__ . "/sql/utils.php");
+require(__DIR__ . "/src/auth.php");
 
 const AUTH_TOKEN_FILE = '/etc/rift-data-load/auth-token';
 
@@ -23,6 +24,14 @@ if ($expected === '' || !hash_equals($expected, $given)) {
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     respond(405, "method not allowed");
+}
+
+// The token was accepted, so this address really is the counter's network: remember it (people browsing from the same
+// address are signed in read-only, see device_user()). A failure here must never lose a reading.
+try {
+    record_device_seen(db_connect(), client_ip());
+} catch (\Throwable $th) {
+    error_log("rift-data-load: device_seen: " . $th->getMessage());
 }
 
 $incomingLine = file_get_contents("php://input");

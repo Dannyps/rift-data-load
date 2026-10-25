@@ -35,7 +35,7 @@ Base URL: `{{BASE}}`   (this document: `{{BASE}}/_edit/`, also at `{{BASE}}/llms
    - messages: `.flash`, `.err`, `.form-error`, `#toast`, anything that reports an error or a result;
    - controls and navigation, including the `footer .footer-links` link to the admin area, and the text of a button;
    - a `.hint` that states a required format (for example HH:MM) or warns about the consequence of an action;
-   - screen-reader-only text (`.sr`).
+   - screen-reader-only text (`.sr`), and the sign-up form's hidden robot trap (`.hp`, must stay hidden and off-screen).
    Never hide headings (`h1`, `h2`, `h3`). Hide by a selector that targets only the explanatory element (so the `footer`
    itself and its links stay), put all of it in one commented block, `/* Hidden explanatory text */`, so the owner can review
    it at a glance, and list in your final report exactly what you hid. If you are unsure whether a text is explanatory,
@@ -70,8 +70,8 @@ meaningful saves rather than hundreds (more than 120 saves in an hour are refuse
 
 ## How to work
 
-1. `GET /_edit/css` and read it: it has four sections, marked by comment banners `/* ===== 1. Design tokens */` ...
-   (tokens; base and shared; meetings page `body.reunioes`; admin `body.admin`). Rules of the meetings page and the admin area are scoped by a class on `<body>` because the same class
+1. `GET /_edit/css` and read it: it has five sections, marked by comment banners `/* ===== 1. Design tokens */` ...
+   (tokens; base and shared; meetings page `body.reunioes`; admin `body.admin`; accounts: sign-in/sign-up pages, header chip, pending badge). Rules of the meetings page and the admin area are scoped by a class on `<body>` because the same class
    names (`.card`, `.hint` ...) look different on each.
 2. Make a change, `PUT` the whole file, then **look at the pages** in a browser (reload; nothing is cached) at 390 px and
    1200 px wide, in light AND dark (emulate `prefers-color-scheme`). Iterate with small saves and short `message`s.
@@ -119,6 +119,12 @@ tokens; `.grid line`, `svg text`), `.tip` (hover tooltip with `.k` and `.swatch`
 `dt`/`dd` (`dd.tbd` = "por anunciar"), round buttons `.info-btn` (report; `:disabled` before the meeting starts) and `.link-btn`
 (copy link)); the report dialog `dialog#report` (`.dlg-head`, `.dlg-close`, `.dlg-body`, `fieldset`/`legend`, `.field` with
 `label`, `input`, `.hint`, `.err`, `.grid2`, `.dlg-actions`, `#reportOut`, `#reportText`, `.form-error`); `#toast`.
+
+**Accounts** (the whole site needs an account; these are the pages a stranger sees). They are admin-style pages, so they use `body.admin`
+rules: `/entrar` (sign in), `/registar` (sign up), `/esqueci-palavra-passe`, `/repor-palavra-passe`, `/conta` (my account); each is a `form.card.narrow`
+with `label`, `input` (text, email, password), `.hint`, `button.primary`, messages in `.flash` (`.ok` / `.error`) and `.hp` (hidden robot trap).
+On the charts and meetings pages a small chip is added at the end of `header` by script: `.userchip` (name link, "Sair" button, or "Ecrã · só leitura").
+In the admin users page: `.pending-list` (sign-up requests), `.count-badge` (number next to "Utilizadores" in the menu), `.pill.pending`, `.pill.disabled`, `.pill.code`.
 
 **Admin `/admin/*`** (`body.admin`): `header` (`.title`, `.menu-toggle` hamburger, `.who`), `nav.nav` (top bar; slide-in drawer on
 phones, with `.nav-backdrop`, and `body.nav-open`), `h2`/`h3`, `.flash` (`.ok` / `.error`), `.card` (`.narrow`), forms

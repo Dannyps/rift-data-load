@@ -59,6 +59,11 @@ function ensure_schema_is_valid($con)
         AND EXISTS (SELECT 1 FROM information_schema.columns
                     WHERE table_name = 'admin_users' AND column_name = 'role')
         AND EXISTS (SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'admin_users' AND column_name = 'password_changed_at')
+        AND to_regclass('password_resets') IS NOT NULL
+        AND to_regclass('auth_attempts') IS NOT NULL
+        AND to_regclass('device_seen') IS NOT NULL
+        AND EXISTS (SELECT 1 FROM information_schema.columns
                     WHERE table_name = 'event_snapshots' AND column_name = 'correction_note')
         AND EXISTS (SELECT 1 FROM information_schema.columns
                     WHERE table_name = 'records' AND column_name = 'received_at')

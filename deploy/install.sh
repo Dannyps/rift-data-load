@@ -131,6 +131,9 @@ fi
 step "Directories and secrets"
 ensure_dir "$CONF_DIR" 750 root:www-data enforce
 ensure_dir "$DATA_DIR" 750 www-data:www-data enforce
+# PHP sessions (kept 30 days: Debian's own cleanup of the default directory would end them after 24 minutes)
+ensure_dir "$DATA_DIR/sessions" 700 www-data:www-data
+printf 'd /var/lib/rift-data-load/sessions 0700 www-data www-data 31d\n' | put "$D/etc/tmpfiles.d/rift-data-load.conf" 644 root:root
 ensure_dir "$DB_DIR" 755 root:root
 ensure_dir "$DB_DIR/pgdata" 700 root:root      # owned by the container afterwards: never changed once it exists
 ensure_dir "$DB_DIR/backup/systemd" 755 root:root

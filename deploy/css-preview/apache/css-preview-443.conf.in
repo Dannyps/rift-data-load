@@ -30,6 +30,17 @@
     RewriteRule ^/api/services$ /fixtures/services-%1.json [L]
     RewriteRule ^/api/services$ /fixtures/services.json [L]
 
+    # Account screens (sign-in, sign-up, password reset, my account): static samples in fixtures/auth/, ?state=erro|enviado|ok|invalido
+    # picks a variant. Posting does nothing: the browser is sent back to the page.
+    RewriteCond %{REQUEST_METHOD} =POST
+    RewriteRule ^/sair/?$ /entrar [R=303,L]
+    RewriteCond %{REQUEST_METHOD} =POST
+    RewriteRule ^/(entrar|registar|esqueci-palavra-passe|repor-palavra-passe|conta)/?$ /$1 [R=303,L]
+    RewriteCond %{QUERY_STRING} (?:^|&)state=([a-z0-9-]+)(?:&|$)
+    RewriteCond %{DOCUMENT_ROOT}/fixtures/auth/$1-%1.html -f
+    RewriteRule ^/(entrar|registar|esqueci-palavra-passe|repor-palavra-passe|conta)/?$ /fixtures/auth/$1-%1.html [L]
+    RewriteRule ^/(entrar|registar|esqueci-palavra-passe|repor-palavra-passe|conta)/?$ /fixtures/auth/$1.html [L]
+
     # Admin: static samples captured from a throwaway database. Saving does nothing: a POST just comes back to the page.
     RewriteRule ^/admin/api/me$ /fixtures/admin/api-me.json [L]
     RewriteCond %{QUERY_STRING} (?:^|&)part=(week|month|year)(?:&|$)

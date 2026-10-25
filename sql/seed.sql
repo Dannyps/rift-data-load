@@ -145,11 +145,60 @@ CREATE TABLE IF NOT EXISTS admin_users (
 -- 'admin' can use every admin page; 'reporter' can only save meeting reports (the dialog on /reunioes)
 -- and change its own password. Only an admin can manage users.
 ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS role text NOT NULL DEFAULT 'admin';
-DO $$ BEGIN
-    ALTER TABLE admin_users ADD CONSTRAINT admin_users_role_check
-        CHECK (role IN ('admin', 'reporter') AND (role = 'admin' OR NOT can_manage_users));
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
+-- 'viewer' only reads the charts and meetings pages. Only an admin can manage users.
+ALTER TABLE admin_users DROP CONSTRAINT IF EXISTS admin_users_role_check;
+ALTER TABLE admin_users ADD CONSTRAINT admin_users_role_check
+    CHECK (role IN ('admin', 'reporter', 'viewer') AND (role = 'admin' OR NOT can_manage_users));
+
+-- Sign-up with approval: an account starts 'pending' (locked) and a manager makes it 'active' or leaves/removes it;
+-- 'disabled' is a manager locking an account that used to work. Existing rows keep working (default 'active').
+-- kind 'display' is a built-in account that nobody can sign in to (the screen next to the counter, see device_seen).
+ALTER TABLE admin_users
+    ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active',
+    ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'person',
+    ADD COLUMN IF NOT EXISTS name text,
+    ADD COLUMN IF NOT EXISTS email text,
+    ADD COLUMN IF NOT EXISTS requested_ip text,
+    ADD COLUMN IF NOT EXISTS approved_by text,
+    ADD COLUMN IF NOT EXISTS approved_at timestamptz,
+    ADD COLUMN IF NOT EXISTS password_changed_at timestamptz;
+ALTER TABLE admin_users DROP CONSTRAINT IF EXISTS admin_users_status_check;
+ALTER TABLE admin_users ADD CONSTRAINT admin_users_status_check CHECK (status IN ('pending', 'active', 'disabled'));
+ALTER TABLE admin_users DROP CONSTRAINT IF EXISTS admin_users_kind_check;
+ALTER TABLE admin_users ADD CONSTRAINT admin_users_kind_check CHECK (kind IN ('person', 'display'));
+CREATE UNIQUE INDEX IF NOT EXISTS admin_users_email_key ON admin_users (lower(email)) WHERE email IS NOT NULL;
+-- the built-in account for requests from the counter's own network ('!' is not a valid hash: it can never sign in)
+INSERT INTO admin_users (username, password_hash, role, kind, name)
+VALUES ('contador', '!', 'viewer', 'display', 'Ecrã junto ao contador')
+ON CONFLICT (username) DO NOTHING;
+
+-- One-use password reset links (only the SHA-256 of the token is stored).
+CREATE TABLE IF NOT EXISTS password_resets (
+    id bigserial PRIMARY KEY,
+    user_id int NOT NULL REFERENCES admin_users (id) ON DELETE CASCADE,
+    token_hash text NOT NULL UNIQUE,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    expires_at timestamptz NOT NULL,
+    used_at timestamptz,
+    ip text
+);
+CREATE INDEX IF NOT EXISTS password_resets_user ON password_resets (user_id, created_at);
+
+-- Rate limiting of the public forms: kind = 'signup' (requests), 'code' (wrong access code), 'reset' (reset requests).
+CREATE TABLE IF NOT EXISTS auth_attempts (
+    at timestamptz NOT NULL DEFAULT now(),
+    kind text NOT NULL,
+    key text NOT NULL            -- an IP address, or a lower-cased email for 'reset'
+);
+CREATE INDEX IF NOT EXISTS auth_attempts_kind_at ON auth_attempts (kind, at);
+
+-- The public IP the counter last posted from (recorded only after its token was accepted); requests from that
+-- address are signed in as the built-in 'contador' account while display_autologin is on.
+CREATE TABLE IF NOT EXISTS device_seen (
+    id int PRIMARY KEY CHECK (id = 1),
+    ip text NOT NULL,
+    seen_at timestamptz NOT NULL DEFAULT now()
+);
 
 CREATE TABLE IF NOT EXISTS admin_login_failures (
     at timestamptz NOT NULL DEFAULT now(),
@@ -238,7 +287,9 @@ INSERT INTO settings (key, value) VALUES
     ('devotional_afternoon', '16:58'),
     ('exit_ref_1', '13:00'),             -- exit speed: time from these hours until the balance is <= threshold
     ('exit_ref_2', '19:00'),
-    ('exit_threshold', '5')
+    ('exit_threshold', '5'),
+    ('signup_code', substr(md5(random()::text || clock_timestamp()::text), 1, 8)),   -- shown to managers, given to the people they invite
+    ('display_autologin', 'on')          -- requests from the counter's IP are signed in as 'contador' (read only)
 ON CONFLICT (key) DO NOTHING;
 
 -- Metrics saved with a meeting's snapshot (frozen with it): arrivals from one hour before the start to the end,

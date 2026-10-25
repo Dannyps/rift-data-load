@@ -987,7 +987,7 @@ body.admin input[type="checkbox"]:hover { box-shadow: inset 0 0 0 1.5px var(--te
 body.admin input[type="checkbox"]:checked { background-color: var(--accent); background-image: var(--check-mark); box-shadow: none; }
 body.admin input[type="checkbox"]:focus-visible { outline: 2px solid var(--focus); outline-offset: -7px; }
 body.admin input[type="checkbox"]:disabled { opacity: .5; cursor: not-allowed; }
-body.admin input[type=text], body.admin input[type=password], body.admin input[type=number], body.admin input[type=date],
+body.admin input[type=text], body.admin input[type=email], body.admin input[type=password], body.admin input[type=number], body.admin input[type=date],
 body.admin input[type=time], body.admin input[type="month"], body.admin select, body.admin textarea {
   font: inherit; font-size: 14.5px; color: var(--text-primary); background: var(--surface-1);
   border: 1px solid var(--control-border); border-radius: var(--radius-sm);
@@ -1330,3 +1330,31 @@ body.admin .add-grid { display: grid; grid-template-columns: repeat(auto-fit, mi
 body.admin .add-user label.check { margin: 14px 0 0; }
 body.admin .add-user label.check[hidden] { display: none; }
 body.admin .add-user .hint { margin-top: 12px; }
+
+/* ===================================================================== 5. Accounts: sign-in and sign-up pages, the header chip, pending requests */
+/* The sign-in, sign-up, password and account pages are admin-style pages (body.admin), see section 4. */
+
+/* hidden field that only robots fill in (never remove it, never show it) */
+body.admin .hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+
+/* number of sign-up requests waiting, next to "Utilizadores" in the menu */
+.count-badge {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px; margin-left: 2px;
+  border-radius: 999px; background: var(--section); color: var(--on-section); font-size: 12px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums;
+}
+body.admin .pill.pending { background: color-mix(in srgb, var(--series-4) 18%, var(--surface-1)); border-color: var(--series-4); color: var(--text-primary); }
+body.admin .pill.disabled { border-color: var(--danger); color: var(--danger); }
+body.admin .pill.code code { font-size: 15px; font-weight: 700; letter-spacing: .08em; user-select: all; }
+.nav a[href$="/conta"] { --i: var(--ico-key); }
+
+/* who is signed in, on the charts and meetings pages (added by assets/auth.js as the last child of the header) */
+.userchip { display: inline-flex; align-items: center; gap: 10px; font-size: 13px; color: var(--hdr-fg2); }
+.userchip a { color: var(--hdr-fg); font-weight: 600; text-decoration: none; }
+.userchip a:hover { text-decoration: underline; }
+.userchip form { display: inline-flex; margin: 0; }
+.userchip button {
+  min-height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--hdr-chip); color: var(--hdr-fg);
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.userchip button:hover { filter: brightness(1.15); }
+body:not(.admin) header > .sub { margin-left: auto; }
